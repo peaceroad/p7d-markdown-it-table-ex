@@ -1,0 +1,114 @@
+[Markdown]
+| hh0 | hh1  | hh2  |
+| --- | ---- | ---- |
+| vh1 |  11  |  12  |
+| vh2 |  21  |  22  |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col">hh0</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vh1</td>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<td>vh2</td>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+
+
+[Markdown]
+|     | hh1  | hh2  |
+| --- | ---- | ---- |
+| vh1 |  11  |  12  |
+| vh2 |  21  |  22  |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col"></th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vh1</td>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<td>vh2</td>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+
+
+[Markdown]
+|         | hh1  | hh2  |
+| ------- | ---- | ---- |
+| **vh1** |  11  |  12  |
+| **vh2** |  21  |  22  |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col"></th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row">vh1</th>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row">vh2</th>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+
+
+[Markdown]
+| **hh0** | hh1  | hh2  |
+| ------- | ---- | ---- |
+| **vh1** |  11  |  12  |
+| **vh2** |  21  |  22  |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col"></th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row">vh1</th>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row">vh2</th>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
