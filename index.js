@@ -1,77 +1,141 @@
 import mditMultimdTable from 'markdown-it-multimd-table'
 
-const addTheadThScope = (state, i, theadFirstThPos) => {
-  let theadTr = state.tokens[i + 1]
-  let j = i + 2
+const addTheadThScope = (state, theadVar) => {
+  let theadTr = state.tokens[theadVar.i + 1]
+  let isEmpty = false
+  let firstThPos = theadVar.pos
+  let j = theadVar.i + 2
   if (theadTr.type === 'tr_open') {
     while (j < state.tokens.length) {
       if (state.tokens[j].type === 'th_open') {
         state.tokens[j].attrPush(['scope', 'col']);
-        if (j == i + 2) {
-          if (/^\*\*[\s\S]*?\*\*$/.test(state.tokens[j+1].content || state.tokens[j+1].content === '')) {
-            theadFirstThPos = j + 1
-          }
+        if (j == theadVar.i + 2) {
+          isEmpty =  state.tokens[j+1].content === ''
+          let isStrong = /^\*\*[\s\S]*?\*\*$/.test(state.tokens[j+1].content)
+          //console.log('thead:: isStrong: ' + isStrong + ', isEmpty: ' + isEmpty)
+          if (isStrong || isEmpty) firstThPos = j
         }
       }
       if (state.tokens[j].type === 'tr_close') break;
       j++
     }
   }
-  return j, theadFirstThPos
+  return theadVar = {
+    i: j,
+    pos: firstThPos,
+    isEmpty: isEmpty,
+  }
 }
 
-const checkTbody = (state, i) => {
-  let isAllLeftTh = true
+const changeTdToTh = (region, state, tdPoses, theadThEmpty) => {
+  tdPoses.forEach(pos => {
+    if (region === 'tbody') {
+      state.tokens[pos].type = 'th_open';
+      state.tokens[pos].tag = 'th';
+      state.tokens[pos].attrPush(['scope', 'row']);
+      state.tokens[pos + 2].type = 'th_close';
+      state.tokens[pos + 2].tag = 'th';
+    }
+    if (region === 'thead' &&  theadThEmpty) return
+    //if (region === 'thead') console.log(state.tokens[pos + 1])
+    let ci = 0
+    while (ci < state.tokens[pos + 1].children.length) {
+      if (state.tokens[pos + 1].children[ci].type === 'strong_open') {
+        state.tokens[pos + 1].children.splice(ci, 1)
+        break
+      }
+      ci++
+    }
+    ci = state.tokens[pos + 1].children.length - 1
+    while (0 < ci) {
+      if (state.tokens[pos + 1].children[ci].type === 'strong_close') {
+        state.tokens[pos + 1].children.splice(ci, 1)
+        break
+      }
+      ci--
+    }
+  })
+}
+
+const checkTbody = (state, tbodyVar) => {
+  let isAllFirstTh = true
   let tbodyFirstThPos = []
+  let i = tbodyVar.i
   while (i < state.tokens.length) {
     if (state.tokens[i].type === 'tr_open') {
       i++
       if (state.tokens[i].type === 'td_open' && state.tokens[i + 1].content.match(/^\*\*[\s\S]*?\*\*$/)) {
-        console.log (state.tokens[i])
         tbodyFirstThPos.push(i)
       } else {
-        isAllLeftTh = false
+        isAllFirstTh = false
         break
       }
     }
     if (state.tokens[i].type === 'tbody_close') break
     i++
   }
-  if (!isAllLeftTh) return i
-  console.log('tbodyFirstThPos: ' + tbodyFirstThPos)
-  tbodyFirstThPos.forEach(pos => {
-    state.tokens[pos].type = 'th_open';
-    state.tokens[pos].tag = 'th';
-    state.tokens[pos].attrPush(['scope', 'row']);
-    
-  //  state.tokens[pos + 1].type = 'th_close';
-//    state.tokens[pos + 1].tag = 'th';
-  })
-  return i
+  if (!isAllFirstTh) return tbodyVar = { i: i, isAllFirstTh: isAllFirstTh }
+  //console.log('tbodyFirstThPos: ' + tbodyFirstThPos)
+  changeTdToTh('tbody', state, tbodyFirstThPos)
+  return tbodyVar = { i: i, isAllFirstTh: isAllFirstTh }
 }
 
-const tableThExtend = (state) => {
+const tableThExtend = (state, opt) => {
   let idx = 0
   while (idx < state.tokens.length) {
     if (state.tokens[idx].type !== 'table_open') { idx++; continue; }
-    let theadFirstThPos = -1
-    let i = idx + 1
-    const hasThead = state.tokens[i].type === 'thead_open'
+    if (opt.wrapper) {
+      const wrapperStartToken = new state.Token('div_open', 'div', 1)
+      wrapperStartToken.attrPush(['class', 'table-wrapper'])
+      const linebreakToken = new state.Token('text', '', 0)
+      linebreakToken.content = '\n'
+      state.tokens.splice(idx, 0, wrapperStartToken, linebreakToken)
+      idx = idx + 2
+    }
+    let theadVar = {
+      i : idx + 1,
+      pos: -1,
+      isEmpty: false,
+    }
+    const hasThead = state.tokens[theadVar.i].type === 'thead_open'
     if (hasThead) {
-      i, theadFirstThPos = addTheadThScope(state, i, theadFirstThPos)
-      //console.log('theadFirstThPos:' + theadFirstThPos)
-      i = i + 2
+      theadVar = addTheadThScope(state, theadVar)
+      idx = theadVar.i + 2
     }
-    //console.log(state.tokens[i].type)
-    const hasTbody = state.tokens[i].type === 'tbody_open'
-    if (hasTbody || theadFirstThPos !== -1) {
-      i = checkTbody(state, i + 1)
+    //console.log ('theadVar: ' + JSON.stringify(theadVar))
+    //console.log(idx, state.tokens[idx])
+    const hasTbody = state.tokens[idx].type === 'tbody_open'
+
+    let tbodyVar = {
+      i: idx + 1,
+      isAllFirstTh: false,
     }
-    while ( i  < state.tokens.length) {
-      if (state.tokens[idx].type === 'table_close') break
-      i++
+    //console.log(tbodyVar)
+    if (hasTbody || theadVar.pos !== -1) {
+      tbodyVar = checkTbody(state, tbodyVar)
+      idx = tbodyVar.i + 1
     }
-    idx = i + 1
+    //console.log(tbodyVar)
+    if (tbodyVar.isAllFirstTh) {
+      let theadPoses = []
+      theadPoses.push(theadVar.pos)
+      changeTdToTh('thead', state, theadPoses, theadVar.isEmpty)
+    }
+    //console.log(idx, state.tokens.length)
+    while ( idx  < state.tokens.length) {
+      if (state.tokens[idx].type === 'table_close') {
+        if (opt.wrapper) {
+          const wrapperEndToken = new state.Token('div_close', 'div', -1)
+          const linebreakToken = new state.Token('text', '', 0)
+          linebreakToken.content = '\n'
+          state.tokens.splice(idx + 1, 0, wrapperEndToken, linebreakToken)
+          idx = idx + 2
+        }
+        break
+      }
+      idx++
+    }
+    idx++
   }
 }
 
@@ -86,10 +150,8 @@ const mditExtentedTable = (md, option) => {
     multiline: false,
     rowspan: true,
   })
-  md.core.ruler.after('linkify', 'table-th-extend', (state) => {
-    tableThExtend(state)
+  md.core.ruler.after('replacements', 'table-th-extend', (state) => {
+    tableThExtend(state, opt)
   })
 }
 export default mditExtentedTable
-
-

@@ -2,10 +2,13 @@ import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import mdit from 'markdown-it'
+import mditFigureWithPCaption from '@peaceroad/markdown-it-figure-with-p-caption'
 
 import mdExtendedTable from '../index.js'
 
 const md = mdit({ html: true }).use(mdExtendedTable)
+const mdWrapper = mdit({ html: true }).use(mdExtendedTable, { wrapper: true })
+const mdWrapperWithCaption = mdit({ html: true }).use(mditFigureWithPCaption).use(mdExtendedTable, { wrapper: true })
 
 let __dirname = path.dirname(new URL(import.meta.url).pathname)
 const isWindows = (process.platform === 'win32')
@@ -15,6 +18,8 @@ if (isWindows) {
 
 const testData = {
   noOption: __dirname + path.sep +  'examples.txt',
+  wrapper: __dirname + path.sep + 'examples_wrapper.txt',
+  wrapperWithCaption: __dirname + path.sep + 'examples_wrapper_with_caption.txt',
 }
 
 const getTestData = (pat) => {
@@ -93,5 +98,7 @@ const runTest = (process, pat, pass, testId) => {
 
 let pass = true
 pass = runTest(md, testData.noOption, pass)
+pass = runTest(mdWrapper, testData.wrapper, pass)
+pass = runTest(mdWrapperWithCaption, testData.wrapperWithCaption, pass)
 
 if (pass) console.log('Passed all test.')
