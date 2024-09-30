@@ -38,6 +38,7 @@ const changeTdToTh = (region, state, tdPoses, theadThEmpty) => {
     }
     if (region === 'thead' &&  theadThEmpty) return
     //if (region === 'thead') console.log(state.tokens[pos + 1])
+    // Todo: 
     let ci = 0
     while (ci < state.tokens[pos + 1].children.length) {
       if (state.tokens[pos + 1].children[ci].type === 'strong_open') {
@@ -142,13 +143,17 @@ const tableThExtend = (state, opt) => {
 const mditExtentedTable = (md, option) => {
   let opt = {
     wrapper: false,
+    multiline: false,
+    rowspan: true,
+    headerless: true,
   }
   for (let key in option) {
     opt[key] = option[key]
   }
   md.use(mditMultimdTable, {
-    multiline: false,
-    rowspan: true,
+    multiline: opt.multiline,
+    rowspan: opt.rowspan,
+    headerless: opt.headerless,
   })
   md.core.ruler.after('replacements', 'table-th-extend', (state) => {
     tableThExtend(state, opt)
