@@ -1,44 +1,38 @@
 import mditMultimdTable from 'markdown-it-multimd-table'
 
 const addTheadThScope = (state, theadVar) => {
-  let theadTr = state.tokens[theadVar.i + 1]
   let isEmpty = false
   let firstThPos = theadVar.pos
   let j = theadVar.i + 2
-  if (theadTr.type === 'tr_open') {
-    while (j < state.tokens.length) {
-      if (state.tokens[j].type === 'th_open') {
-        state.tokens[j].attrPush(['scope', 'col']);
-        if (j == theadVar.i + 2) {
-          isEmpty =  state.tokens[j+1].content === ''
-          let isStrong = /^\*\*[\s\S]*?\*\*$/.test(state.tokens[j+1].content)
-          //console.log('thead:: isStrong: ' + isStrong + ', isEmpty: ' + isEmpty)
-          if (isStrong || isEmpty) firstThPos = j
-        }
+  //if (state.tokens[theadVar.i + 1].type !== 'tr_open') return threadVar
+  while (j < state.tokens.length) {
+    if (state.tokens[j].type === 'th_open') {
+      state.tokens[j].attrPush(['scope', 'col']);
+      if (j === theadVar.i + 2) {
+        isEmpty =  state.tokens[j+1].content === ''
+        let isStrong = /^\*\*[\s\S]*?\*\*$/.test(state.tokens[j+1].content)
+        if (isStrong || isEmpty) firstThPos = j
       }
-      if (state.tokens[j].type === 'tr_close') break;
-      j++
     }
+    if (state.tokens[j].type === 'tr_close') break
+    j++
   }
-  return theadVar = {
-    i: j,
-    pos: firstThPos,
-    isEmpty: isEmpty,
-  }
+  return {i: j, firstThPos: firstThPos, isEmpty: isEmpty}
 }
 
-const changeTdToTh = (region, state, tdPoses, theadThEmpty) => {
-  tdPoses.forEach(pos => {
-    if (region === 'tbody') {
+const changeTdToTh = (state, tdPoses, hasThead, theadVar) => {
+  let j = 0
+  while(j < tdPoses.length) {
+    //console.log('tdPos: ' + tdPoses[j] + ', state.tokens[j].type: ' + state.tokens[tdPoses[j]].type)
+    const pos = tdPoses[j]
+    if (j > 0 || (!hasThead && j === 0)) {
       state.tokens[pos].type = 'th_open';
       state.tokens[pos].tag = 'th';
       state.tokens[pos].attrPush(['scope', 'row']);
       state.tokens[pos + 2].type = 'th_close';
       state.tokens[pos + 2].tag = 'th';
     }
-    if (region === 'thead' &&  theadThEmpty) return
-    //if (region === 'thead') console.log(state.tokens[pos + 1])
-    // Todo: 
+
     let ci = 0
     while (ci < state.tokens[pos + 1].children.length) {
       if (state.tokens[pos + 1].children[ci].type === 'strong_open') {
@@ -55,33 +49,31 @@ const changeTdToTh = (region, state, tdPoses, theadThEmpty) => {
       }
       ci--
     }
-  })
+    j++
+  }
 }
 
 const checkTbody = (state, tbodyVar) => {
   let isAllFirstTh = true
-  let tbodyFirstThPos = []
-  let i = tbodyVar.i
-  while (i < state.tokens.length) {
-    if (state.tokens[i].type === 'tr_open') {
-      i++
-      if (state.tokens[i].type === 'td_open' && state.tokens[i + 1].content.match(/^\*\*[\s\S]*?\*\*$/)) {
-        tbodyFirstThPos.push(i)
+  let tbodyFirstThPoses = []
+  let j = tbodyVar.i + 1
+  while (j < state.tokens.length) {
+    if (state.tokens[j].type === 'tr_open') {
+      j++
+      if (state.tokens[j].type === 'td_open' && state.tokens[j + 1].content.match(/^\*\*[\s\S]*?\*\*$/)) {
+        tbodyFirstThPoses.push(j)
       } else {
         isAllFirstTh = false
         break
       }
     }
-    if (state.tokens[i].type === 'tbody_close') break
-    i++
+    if (state.tokens[j].type === 'tbody_close') break
+    j++
   }
-  if (!isAllFirstTh) return tbodyVar = { i: i, isAllFirstTh: isAllFirstTh }
-  //console.log('tbodyFirstThPos: ' + tbodyFirstThPos)
-  changeTdToTh('tbody', state, tbodyFirstThPos)
-  return tbodyVar = { i: i, isAllFirstTh: isAllFirstTh }
+  return { i: j ,isAllFirstTh: isAllFirstTh, tbodyFirstThPoses: tbodyFirstThPoses}
 }
 
-const tableThExtend = (state, opt) => {
+const tableExtend = (state, opt) => {
   let idx = 0
   while (idx < state.tokens.length) {
     if (state.tokens[idx].type !== 'table_open') { idx++; continue; }
@@ -95,35 +87,36 @@ const tableThExtend = (state, opt) => {
     }
     let theadVar = {
       i : idx + 1,
-      pos: -1,
+      firstThPos: -1,
       isEmpty: false,
     }
+    //console.log(theadVar.i, state.tokens[theadVar.i].type)
     const hasThead = state.tokens[theadVar.i].type === 'thead_open'
     if (hasThead) {
       theadVar = addTheadThScope(state, theadVar)
-      idx = theadVar.i + 2
+      idx = theadVar.i + 1
     }
-    //console.log ('theadVar: ' + JSON.stringify(theadVar))
-    //console.log(idx, state.tokens[idx])
-    const hasTbody = state.tokens[idx].type === 'tbody_open'
-
+    //console.log('theadVar: ' + JSON.stringify(theadVar) + ', hasThead: ' + hasThead)
     let tbodyVar = {
       i: idx + 1,
       isAllFirstTh: false,
+      tbodyFirstThPoses: [],
     }
-    //console.log(tbodyVar)
-    if (hasTbody || theadVar.pos !== -1) {
+    //console.log(tbodyVar.i, state.tokens[tbodyVar.i].type)
+    const hasTbody = state.tokens[tbodyVar.i].type === 'tbody_open'
+    if (hasTbody) {
       tbodyVar = checkTbody(state, tbodyVar)
       idx = tbodyVar.i + 1
     }
-    //console.log(tbodyVar)
-    if (tbodyVar.isAllFirstTh) {
-      let theadPoses = []
-      theadPoses.push(theadVar.pos)
-      changeTdToTh('thead', state, theadPoses, theadVar.isEmpty)
+    //console.log('tbodyVar: ' + JSON.stringify(tbodyVar) + ', hasTbody: ' + hasTbody)
+    if (theadVar.firstThPos && tbodyVar.isAllFirstTh) {
+      let firstTdPoses = [...tbodyVar.tbodyFirstThPoses]
+      if (hasThead) {
+        firstTdPoses.splice(0, 0, theadVar.firstThPos)
+      }
+      changeTdToTh(state, firstTdPoses, hasThead, theadVar)
     }
-    //console.log(idx, state.tokens.length)
-    while ( idx  < state.tokens.length) {
+    while (idx  < state.tokens.length) {
       if (state.tokens[idx].type === 'table_close') {
         if (opt.wrapper) {
           const wrapperEndToken = new state.Token('div_close', 'div', -1)
@@ -156,7 +149,7 @@ const mditExtentedTable = (md, option) => {
     headerless: opt.headerless,
   })
   md.core.ruler.after('replacements', 'table-th-extend', (state) => {
-    tableThExtend(state, opt)
+    tableExtend(state, opt)
   })
 }
 export default mditExtentedTable

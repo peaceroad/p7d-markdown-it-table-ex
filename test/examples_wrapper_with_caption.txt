@@ -1,0 +1,141 @@
+[Markdown]
+Table 1. A caption.
+
+| hh0 | hh1  | hh2  |
+| --- | ---- | ---- |
+| vh1 |  11  |  12  |
+| vh2 |  21  |  22  |
+[HTML]
+<figure class="f-table">
+<figcaption><span class="f-table-label">Table 1<span class="f-table-label-joint">.</span></span> A caption.</figcaption>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr>
+<th scope="col">hh0</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vh1</td>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<td>vh2</td>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+
+
+[Markdown]
+| hh0 | hh1  | hh2  |
+| --- | ---- | ---- |
+| vh1 |  11  |  12  |
+| vh2 |  21  |  22  |
+
+Table 1. A caption.
+[HTML]
+<figure class="f-table">
+<div class="table-wrapper">
+<table>
+<thead>
+<tr>
+<th scope="col">hh0</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vh1</td>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<td>vh2</td>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+</div>
+<figcaption><span class="f-table-label">Table 1<span class="f-table-label-joint">.</span></span> A caption.</figcaption>
+</figure>
+
+
+[Markdown]
+| **hh0** | hh1  | hh2  |
+| ------- | ---- | ---- |
+| **vh1** |  11  |  12  |
+| **vh2** |  21  |  22  |
+
+Table 1. A caption.
+
+Table 2. A caption.
+
+| **hh0** | hh1  | hh2  |
+| ------- | ---- | ---- |
+| **vh1** |  11  |  12  |
+| **vh2** |  21  |  22  |
+
+
+[HTML]
+<figure class="f-table">
+<div class="table-wrapper">
+<table>
+<thead>
+<tr>
+<th scope="col">hh0</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row">vh1</th>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row">vh2</th>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+</div>
+<figcaption><span class="f-table-label">Table 1<span class="f-table-label-joint">.</span></span> A caption.</figcaption>
+</figure>
+<figure class="f-table">
+<figcaption><span class="f-table-label">Table 2<span class="f-table-label-joint">.</span></span> A caption.</figcaption>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr>
+<th scope="col">hh0</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row">vh1</th>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row">vh2</th>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
