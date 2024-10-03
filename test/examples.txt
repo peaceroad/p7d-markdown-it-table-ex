@@ -380,3 +380,32 @@
 </tr>
 </tbody>
 </table>
+
+
+[Markdown]
+| **h**h**0** | hh1  | hh2  |
+| ------- | ---- | ---- |
+| **v**h**1**c**d** |  11  |  12  |
+| **vh2** |  21  |  22  |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col"><strong>h</strong>h<strong>0</strong></th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>v</strong>h<strong>1</strong>c<strong>d</strong></td>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<td><strong>vh2</strong></td>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>

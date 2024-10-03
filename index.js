@@ -1,5 +1,3 @@
-import mditMultimdTable from 'markdown-it-multimd-table'
-
 const checkedTdReg = /^\*\*(?!.*\*\*.*\*\*)[\s\S]*?\*\*$/
 
 const addTheadThScope = (state, theadVar) => {
@@ -23,7 +21,7 @@ const addTheadThScope = (state, theadVar) => {
 }
 
 
-const changeTdToTh = (state, tdPoses, hasThead, theadVar) => {
+const changeTdToTh = (state, tdPoses, hasThead) => {
   let j = 0
   while(j < tdPoses.length) {
     //console.log('tdPos: ' + tdPoses[j] + ', state.tokens[j].type: ' + state.tokens[tdPoses[j]].type)
@@ -76,7 +74,7 @@ const checkTbody = (state, tbodyVar) => {
   return { i: j ,isAllFirstTh: isAllFirstTh, tbodyFirstThPoses: tbodyFirstThPoses}
 }
 
-const tableExtend = (state, opt) => {
+const tableEx = (state, opt) => {
   let idx = 0
   while (idx < state.tokens.length) {
     if (state.tokens[idx].type !== 'table_open') { idx++; continue; }
@@ -136,24 +134,16 @@ const tableExtend = (state, opt) => {
   }
 }
 
-const mditExtentedTable = (md, option) => {
+const mditTableEx = (md, option) => {
   let opt = {
-    headerless: true,
-    multiline: false,
-    rowspan: true,
     matrix: true,
     wrapper: false,
   }
   for (let key in option) {
     opt[key] = option[key]
   }
-  md.use(mditMultimdTable, {
-    headerless: opt.headerless,
-    multiline: opt.multiline,
-    rowspan: opt.rowspan,
-  })
-  md.core.ruler.after('replacements', 'table-th-extend', (state) => {
-    tableExtend(state, opt)
+  md.core.ruler.after('replacements', 'table-ex', (state) => {
+    tableEx(state, opt)
   })
 }
-export default mditExtentedTable
+export default mditTableEx

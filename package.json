@@ -1,5 +1,5 @@
 {
-  "name": "p7d-markdown-it-table",
+  "name": "p7d-markdown-it-table-ex",
   "version": "0.1.0",
   "description": "",
   "type": "module",
@@ -10,10 +10,8 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "markdown-it-multimd-table": "^4.2.3",
     "@peaceroad/markdown-it-figure-with-p-caption": "^0.9.1",
     "markdown-it": "^14.1.0"
-  },
-  "dependencies": {
-    "markdown-it-multimd-table": "^4.2.3"
   }
 }

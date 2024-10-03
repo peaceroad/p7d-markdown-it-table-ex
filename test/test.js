@@ -3,12 +3,26 @@ import fs from 'fs'
 import path from 'path'
 import mdit from 'markdown-it'
 import mditFigureWithPCaption from '@peaceroad/markdown-it-figure-with-p-caption'
+import mditMultimdTable from 'markdown-it-multimd-table'
+
 
 import mdExtendedTable from '../index.js'
 
-const md = mdit({ html: true }).use(mdExtendedTable)
-const mdWrapper = mdit({ html: true }).use(mdExtendedTable, { wrapper: true })
-const mdWrapperWithCaption = mdit({ html: true }).use(mditFigureWithPCaption).use(mdExtendedTable, { wrapper: true })
+const md = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mdExtendedTable)
+const mdWrapper = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mdExtendedTable, { wrapper: true })
+const mdWrapperWithCaption = mdit({ html: true }).use(mditFigureWithPCaption).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mdExtendedTable, { wrapper: true })
 
 let __dirname = path.dirname(new URL(import.meta.url).pathname)
 const isWindows = (process.platform === 'win32')
