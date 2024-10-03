@@ -2,14 +2,39 @@
 
 A markdown-it plugin. For table processing, this plugin plus some extended syntax.
 
-Enabled by default
-    - matrix
-Option
-    - wrapper
+- matrix (enabled by default.)
+- wrapper (option.)
 
 Notice. This is intended to be used in conjunction with [markdown-it-multimd-table](https://github.com/redbug312/markdown-it-multimd-table) enabled the option: headerless, multiline, rowspan.
 
-## extended syntax
+## Use
+
+```js
+import mdit from 'markdown-it'
+import mditMultimdTable from 'markdown-it-multimd-table'
+import mditTableEx from '@peaceroad/markdown-it-table-ex'
+
+const md = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx)
+```
+
+wrapper will be enabled as follows:
+
+```js
+const md = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, {
+    wrapper: true,
+  })
+```
+
+
+## Extended notation
 
 ### matrix
 

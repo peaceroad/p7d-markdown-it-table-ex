@@ -1,5 +1,5 @@
 {
-  "name": "p7d-markdown-it-table-ex",
+  "name": "@peacerad/markdown-it-table-ex",
   "version": "0.1.0",
   "description": "A markdown-it plugin. Add matrix and wrapper notation for table processing.",
   "type": "module",
