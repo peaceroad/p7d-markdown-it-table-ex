@@ -1,5 +1,7 @@
 import mditMultimdTable from 'markdown-it-multimd-table'
 
+const checkedTdReg = /^\*\*(?!.*\*\*.*\*\*)[\s\S]*?\*\*$/
+
 const addTheadThScope = (state, theadVar) => {
   let isEmpty = false
   let firstThPos = theadVar.pos
@@ -10,7 +12,7 @@ const addTheadThScope = (state, theadVar) => {
       state.tokens[j].attrPush(['scope', 'col']);
       if (j === theadVar.i + 2) {
         isEmpty =  state.tokens[j+1].content === ''
-        let isStrong = /^\*\*[\s\S]*?\*\*$/.test(state.tokens[j+1].content)
+        let isStrong = checkedTdReg.test(state.tokens[j+1].content)
         if (isStrong || isEmpty) firstThPos = j
       }
     }
@@ -19,6 +21,7 @@ const addTheadThScope = (state, theadVar) => {
   }
   return {i: j, firstThPos: firstThPos, isEmpty: isEmpty}
 }
+
 
 const changeTdToTh = (state, tdPoses, hasThead, theadVar) => {
   let j = 0
@@ -60,7 +63,7 @@ const checkTbody = (state, tbodyVar) => {
   while (j < state.tokens.length) {
     if (state.tokens[j].type === 'tr_open') {
       j++
-      if (state.tokens[j].type === 'td_open' && state.tokens[j + 1].content.match(/^\*\*[\s\S]*?\*\*$/)) {
+      if (state.tokens[j].type === 'td_open' && state.tokens[j + 1].content.match(checkedTdReg)) {
         tbodyFirstThPoses.push(j)
       } else {
         isAllFirstTh = false
@@ -114,7 +117,7 @@ const tableExtend = (state, opt) => {
       if (hasThead) {
         firstTdPoses.splice(0, 0, theadVar.firstThPos)
       }
-      changeTdToTh(state, firstTdPoses, hasThead, theadVar)
+      if (opt.matrix) changeTdToTh(state, firstTdPoses, hasThead, theadVar)
     }
     while (idx  < state.tokens.length) {
       if (state.tokens[idx].type === 'table_close') {
@@ -135,18 +138,19 @@ const tableExtend = (state, opt) => {
 
 const mditExtentedTable = (md, option) => {
   let opt = {
-    wrapper: false,
+    headerless: true,
     multiline: false,
     rowspan: true,
-    headerless: true,
+    matrix: true,
+    wrapper: false,
   }
   for (let key in option) {
     opt[key] = option[key]
   }
   md.use(mditMultimdTable, {
+    headerless: opt.headerless,
     multiline: opt.multiline,
     rowspan: opt.rowspan,
-    headerless: opt.headerless,
   })
   md.core.ruler.after('replacements', 'table-th-extend', (state) => {
     tableExtend(state, opt)
