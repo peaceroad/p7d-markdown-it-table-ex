@@ -4,6 +4,7 @@ import path from 'path'
 import mdit from 'markdown-it'
 import mditFigureWithPCaption from '@peaceroad/markdown-it-figure-with-p-caption'
 import mditMultimdTable from 'markdown-it-multimd-table'
+import mditStrongJa from '@peaceroad/markdown-it-strong-ja'
 
 import mditTableEx from '../index.js'
 
@@ -11,7 +12,7 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
     headerless: true,
     multiline: true,
     rowspan: true,
-  }).use(mditTableEx)
+  }).use(mditTableEx).use(mditStrongJa)
 const mdWrapper = mdit({ html: true }).use(mditMultimdTable, {
     headerless: true,
     multiline: true,
@@ -22,6 +23,11 @@ const mdWrapperWithCaption = mdit({ html: true }).use(mditFigureWithPCaption).us
     multiline: true,
     rowspan: true,
   }).use(mditTableEx, { wrapper: true })
+const mdColgruop = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, { colgroup: true })
 
 let __dirname = path.dirname(new URL(import.meta.url).pathname)
 const isWindows = (process.platform === 'win32')
@@ -33,6 +39,7 @@ const testData = {
   noOption: __dirname + path.sep +  'examples.txt',
   wrapper: __dirname + path.sep + 'examples_wrapper.txt',
   wrapperWithCaption: __dirname + path.sep + 'examples_wrapper_with_caption.txt',
+  colgroup: __dirname + path.sep + 'examples_colgroup.txt',
 }
 
 const getTestData = (pat) => {
@@ -85,7 +92,7 @@ const runTest = (process, pat, pass, testId) => {
   while(n <= end) {
 
     if (!ms[n]
-//      || n != 3
+     // || n != 3
     ) {
       n++
       continue
@@ -113,5 +120,6 @@ let pass = true
 pass = runTest(md, testData.noOption, pass)
 pass = runTest(mdWrapper, testData.wrapper, pass)
 pass = runTest(mdWrapperWithCaption, testData.wrapperWithCaption, pass)
+pass = runTest(mdColgruop, testData.colgroup, pass)
 
 if (pass) console.log('Passed all test.')
