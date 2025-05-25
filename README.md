@@ -4,6 +4,7 @@ A markdown-it plugin. For table processing, this plugin plus some extended synta
 
 - matrix (enabled by default.)
 - wrapper (option.)
+- colgroup (option.)
 
 Notice. This is intended to be used in conjunction with [markdown-it-multimd-table](https://github.com/redbug312/markdown-it-multimd-table) enabled the option: headerless, multiline, rowspan.
 
@@ -20,19 +21,6 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
     rowspan: true,
   }).use(mditTableEx)
 ```
-
-wrapper will be enabled as follows:
-
-```js
-const md = mdit({ html: true }).use(mditMultimdTable, {
-    headerless: true,
-    multiline: true,
-    rowspan: true,
-  }).use(mditTableEx, {
-    wrapper: true,
-  })
-```
-
 
 ## Extended notation
 
@@ -161,12 +149,9 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
   })
 ```
 
-If you use grouped header notation in the table header (e.g., `**group:** hh1`), `<colgroup>` and a multi-row `<thead>` will be generated automatically.
+If you use grouped header notation in the table header (e.g., `**group:** hh1`), `<colgroup>` and `<thead>` with two tr lines will be generated. If there is no grouped header notation or only one, a normal single-row header is output and no colgroup is generated.
 
-- If there are two or more grouped header cells, the first row will output group names. If all group names are the same (e.g., `**group:**`), that name (e.g., `group`) is used. If there are different group names (e.g., `**foods:**`, `**drinks:**`), each group name is output as is.
-- `<colgroup>` is inserted directly under `<table>` and before `<thead>`, and `<col span="N">` is output according to the number of columns in each group.
-- If there are less than two grouped header cells, a normal single-row header is output and `<colgroup>` is not generated.
-- Columns that are not grouped (such as the leftmost column) will have `rowspan="2"`.
+In other words, to determine the group, if there is `**` at the beginning of a cell followed by `:**` (`：**`), it becomes a candidate, and is determined by matching it with the adjacent cells.
 
 **Examples**:
 
@@ -213,10 +198,28 @@ If you use grouped header notation in the table header (e.g., `**group:** hh1`),
 </tr>
 </tbody>
 </table>
+```
 
+### colgroup with no asterisk
 
+Do you find it troublesome to write `**`? You can omit it by adding more options.
+
+```js
+const md = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, {
+    colgroup: true,
+    colgroupWithNoAsterisk: true,
+  })
+```
+
+In this case, if you use a half-width `:`, you need to follow it with one or more half-width spaces. If you use a full-width `:`, you don't need to follow it with a space.
+
+```
 [Markdown]
-| | **group:** hh1  | **group:** hh2  | hh1  |  hh2  |
+| hh0 | foods: hh1  | foods: hh2  | drinks: hh1  | drinks: hh2  |
 | --- | ---- | ---- | ---- | ---- |
 | vh1 |  11  |  12  | 13  |  14  |
 | vh2 |  21  |  22  | 23  |  24  |
@@ -225,17 +228,17 @@ If you use grouped header notation in the table header (e.g., `**group:** hh1`),
 <colgroup>
 <col>
 <col span="2">
-<col>
-<col>
+<col span="2">
 </colgroup>
 <thead>
 <tr>
-<th rowspan="2" scope="col"></th>
-<th colspan="2" scope="col">group</th>
-<th rowspan="2" scope="col">hh1</th>
-<th rowspan="2" scope="col">hh2</th>
+<th rowspan="2" scope="col">hh0</th>
+<th colspan="2" scope="col">foods</th>
+<th colspan="2" scope="col">drinks</th>
 </tr>
 <tr>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
 <th scope="col">hh1</th>
 <th scope="col">hh2</th>
 </tr>
@@ -258,6 +261,3 @@ If you use grouped header notation in the table header (e.g., `**group:** hh1`),
 </tbody>
 </table>
 ```
-
-- If there is no grouped header notation or only one, a normal single-row header is output and no colgroup is generated.
-

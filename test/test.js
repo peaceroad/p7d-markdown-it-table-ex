@@ -29,6 +29,15 @@ const mdColgruop = mdit({ html: true }).use(mditMultimdTable, {
     rowspan: true,
   }).use(mditTableEx, { colgroup: true })
 
+const mdColgruopWithNoAsterisk = mdit({ html: true }).use(mditMultimdTable, {
+  headerless: true,
+  multiline: true,
+  rowspan: true,
+}).use(mditTableEx, {
+  colgroup: true,
+  colgroupWithNoAsterisk: true,
+})
+
 let __dirname = path.dirname(new URL(import.meta.url).pathname)
 const isWindows = (process.platform === 'win32')
 if (isWindows) {
@@ -40,6 +49,7 @@ const testData = {
   wrapper: __dirname + path.sep + 'examples_wrapper.txt',
   wrapperWithCaption: __dirname + path.sep + 'examples_wrapper_with_caption.txt',
   colgroup: __dirname + path.sep + 'examples_colgroup.txt',
+  colgroupWithNoAsterisk: __dirname + path.sep + 'examples_colgroup_with_no_asterisk.txt',
 }
 
 const getTestData = (pat) => {
@@ -121,5 +131,6 @@ pass = runTest(md, testData.noOption, pass)
 pass = runTest(mdWrapper, testData.wrapper, pass)
 pass = runTest(mdWrapperWithCaption, testData.wrapperWithCaption, pass)
 pass = runTest(mdColgruop, testData.colgroup, pass)
+pass = runTest(mdColgruopWithNoAsterisk, testData.colgroupWithNoAsterisk, pass)
 
 if (pass) console.log('Passed all test.')

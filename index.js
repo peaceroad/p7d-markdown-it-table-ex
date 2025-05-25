@@ -216,7 +216,7 @@ const checkTbody = (state, tbodyVar) => {
   return { i: j, isAllFirstTh: isAllFirstTh, tbodyFirstThPoses: tbodyFirstThPoses}
 }
 
-const setColgroup = (state, tableOpenIdx) => {
+const setColgroup = (state, tableOpenIdx, opt) => {
   const tokens = state.tokens;
   const Token = state.Token;
   
@@ -257,8 +257,11 @@ const setColgroup = (state, tableOpenIdx) => {
         thTokens.push(thIdx);
         const inline = tokens[thIdx + 1];
         const content = inline.content;
-        const match = content.match(/^\*\*([^*:]+):\*\*/);
-        
+        const colgroupMatchReg = opt.colgroupWithNoAsterisk
+          ? /^([^:：]+)(?::|：)\s*/
+          : /^\*\*([^*:：]+)[:：]\*\*\s*/;
+        const match = content.match(colgroupMatchReg);
+
         if (match) {
           const group = match[1].trim();
           const lastGroup = groupData.rawNames[groupData.rawNames.length - 1];
@@ -408,7 +411,10 @@ const setColgroup = (state, tableOpenIdx) => {
           
           const th2Inline = new Token('inline', '', 0);
           const orig = origThs[thPtr]?.inline?.content || '';
-          const match = orig.match(/^\u001a*\*\*[^*:]+:\*\*\s*(.*)$/);
+          const origColgroupMatchReg = opt.colgroupWithNoAsterisk
+            ? /^[^:：]+(?::|：)\s*(.*)$/
+            : /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/;
+          const match = orig.match(origColgroupMatchReg);
           th2Inline.content = match ? match[1] : orig;
           th2Inline.children = [{ type: 'text', content: th2Inline.content, level: 0 }];
           
@@ -619,7 +625,7 @@ const tableEx = (state, opt) => {
       theadVar = addTheadThScope(state, theadVar);
       idx = theadVar.i + 1;
       if (opt.colgroup) {
-        setColgroup(state, tableOpenIdx);
+        setColgroup(state, tableOpenIdx, opt);
       }
     }
     
@@ -667,7 +673,8 @@ const mditTableEx = (md, option) => {
   let opt = {
     matrix: true,
     wrapper: false,
-    colgroup: false
+    colgroup: false,
+    colgroupWithNoAsterisk: false
   };
   for (let key in option) {
     opt[key] = option[key]

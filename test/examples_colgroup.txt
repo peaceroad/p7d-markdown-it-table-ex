@@ -298,3 +298,83 @@
 </tr>
 </tbody>
 </table>
+
+
+[Markdown]
+| | **group:** hh1  | group: hh2  | hh1  |  hh2  |
+| --- | ---- | ---- | ---- | ---- |
+| vh1 |  11  |  12  | 13  |  14  |
+| vh2 |  21  |  22  | 23  |  24  |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col"></th>
+<th scope="col"><strong>group:</strong> hh1</th>
+<th scope="col">group: hh2</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vh1</td>
+<td>11</td>
+<td>12</td>
+<td>13</td>
+<td>14</td>
+</tr>
+<tr>
+<td>vh2</td>
+<td>21</td>
+<td>22</td>
+<td>23</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+
+
+[Markdown]
+| hh0 | **料理：**hh1  | **料理：**hh2  | **飲み物：**hh1  | **飲み物：**hh2  |
+| --- | ---- | ---- | ---- | ---- |
+| vh1 |  11  |  12  | 13  |  14  |
+| vh2 |  21  |  22  | 23  |  24  |
+[HTML]
+<table>
+<colgroup>
+<col>
+<col span="2">
+<col span="2">
+</colgroup>
+<thead>
+<tr>
+<th rowspan="2" scope="col">hh0</th>
+<th colspan="2" scope="col">料理</th>
+<th colspan="2" scope="col">飲み物</th>
+</tr>
+<tr>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vh1</td>
+<td>11</td>
+<td>12</td>
+<td>13</td>
+<td>14</td>
+</tr>
+<tr>
+<td>vh2</td>
+<td>21</td>
+<td>22</td>
+<td>23</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+
