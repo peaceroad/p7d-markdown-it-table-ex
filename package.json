@@ -1,6 +1,6 @@
 {
   "name": "@peaceroad/markdown-it-table-ex",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A markdown-it plugin. Add matrix and wrapper notation for table processing.",
   "type": "module",
   "main": "index.js",
