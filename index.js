@@ -1,4 +1,58 @@
-const checkedTdReg = /^\*\*[\s\S]*?\*\*$/;
+const getLeadingStrongCloseIndex = (inline) => {
+  if (!inline || !Array.isArray(inline.children) || inline.children.length < 3) {
+    return -1;
+  }
+  const children = inline.children;
+  let start = 0;
+  while (start < children.length &&
+         children[start].type === 'text' &&
+         children[start].content === '') {
+    start++;
+  }
+  if (start >= children.length || children[start].type !== 'strong_open') {
+    return -1;
+  }
+  let depth = 0;
+  for (let i = start; i < children.length; i++) {
+    const type = children[i].type;
+    if (type === 'strong_open') {
+      depth++;
+    } else if (type === 'strong_close') {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+      if (depth < 0) {
+        return -1;
+      }
+    }
+  }
+  return -1;
+};
+
+const isStrongWrappedInline = (inline, allowFallback) => {
+  if (!inline || typeof inline.content !== 'string') return false;
+  const content = inline.content;
+  if (!content.startsWith('**') || !content.endsWith('**')) return false;
+  if (!Array.isArray(inline.children)) return !!allowFallback;
+  if (getLeadingStrongCloseIndex(inline) !== -1) return true;
+  return !!allowFallback;
+};
+
+const hasLeadingStrongMarker = (inline, allowFallback) => {
+  if (getLeadingStrongCloseIndex(inline) !== -1) return true;
+  if (!allowFallback || !inline || typeof inline.content !== 'string') return false;
+  return inline.content.startsWith('**');
+};
+
+const hasInlineRule = (md, name) => {
+  const rules = md && md.inline && md.inline.ruler && md.inline.ruler.__rules__;
+  if (!Array.isArray(rules)) return false;
+  for (let i = 0; i < rules.length; i++) {
+    if (rules[i].name === name) return true;
+  }
+  return false;
+};
 
 const createTokenTemplate = (tokenType, tag, nesting, level) => ({
   type: tokenType,
@@ -17,117 +71,123 @@ const createTokenTemplate = (tokenType, tag, nesting, level) => ({
 });
 
 // Helper function to remove strong tags that wrap the entire content
-const removeStrongWrappers = (inline) => {
+const removeStrongWrappers = (inline, allowFallback) => {
   if (!Array.isArray(inline.children) || inline.children.length === 0) {
     return;
   }
   
   const children = inline.children;
-  const content = inline.content;
-  
-  // Quick check to avoid regex if obviously not matching
-  if (!content.startsWith('**') || !content.endsWith('**')) {
+  if (!isStrongWrappedInline(inline, allowFallback)) {
+    return;
+  }
+
+  if (children.length === 3 &&
+      children[0].type === 'strong_open' &&
+      children[2].type === 'strong_close' &&
+      children[1].type === 'text') {
+    inline.children = [children[1]];
+    inline.content = children[1].content;
     return;
   }
   
-  // Check if the content matches the pattern **...** where entire content is wrapped
-  if (!checkedTdReg.test(content)) {
-    return;
-  }
+  // Find strong open/close positions in one pass
+  let openCount = 0;
+  let closeCount = 0;
+  let firstOpen = -1;
+  let firstClose = -1;
+  let firstPair = null;
+  let lastPair = null;
+  const stack = [];
   
-  // Find all strong open/close positions in one pass
-  const strongPositions = [];
   for (let i = 0; i < children.length; i++) {
     const type = children[i].type;
     if (type === 'strong_open') {
-      strongPositions.push({ type: 'open', index: i });
+      if (firstOpen === -1) {
+        firstOpen = i;
+      }
+      openCount++;
+      stack.push(i);
     } else if (type === 'strong_close') {
-      strongPositions.push({ type: 'close', index: i });
+      if (firstClose === -1) {
+        firstClose = i;
+      }
+      closeCount++;
+      if (stack.length > 0) {
+        const openIdx = stack.pop();
+        if (!firstPair) {
+          firstPair = { open: openIdx, close: i };
+        }
+        lastPair = { open: openIdx, close: i };
+      }
     }
   }
-  
-  const openCount = strongPositions.filter(p => p.type === 'open').length;
-  const closeCount = strongPositions.filter(p => p.type === 'close').length;
   
   if (openCount !== closeCount || openCount === 0) {
     return;
   }
   
-  if (openCount >= 2) {
+  if (openCount >= 2 && firstPair && lastPair) {
     // Multiple strong pairs case - find pairs by stack matching
-    const pairs = [];
-    const stack = [];
+    const newChildren = [];
+    const contentParts = [];
     
-    for (const pos of strongPositions) {
-      if (pos.type === 'open') {
-        stack.push(pos.index);
-      } else if (stack.length > 0) {
-        const openIdx = stack.pop();
-        pairs.push({ open: openIdx, close: pos.index });
+    // Helper function to add children and build content
+    const addChildrenRange = (start, end) => {
+      for (let i = start; i < end; i++) {
+        const child = children[i];
+        newChildren.push(child);
+        if (child.type === 'text') {
+          contentParts.push(child.content);
+        } else if (child.type === 'em_open' || child.type === 'em_close') {
+          contentParts.push('*');
+        }
+      }
+    };
+    
+    // Add content before first pair
+    addChildrenRange(0, firstPair.open);
+    
+    // Add content from first pair (without the strong tags)
+    addChildrenRange(firstPair.open + 1, firstPair.close);
+    
+    // Add content between first and last pairs with strong wrapping
+    for (let i = firstPair.close + 1; i < lastPair.open; i++) {
+      const child = children[i];
+      if (child.type === 'text' && child.content.trim() !== '') {
+        // Create strong tokens more efficiently
+        const strongOpen = Object.create(child.constructor.prototype);
+        Object.assign(strongOpen, createTokenTemplate('strong_open', 'strong', 1, child.level));
+        
+        const strongClose = Object.create(child.constructor.prototype);
+        Object.assign(strongClose, createTokenTemplate('strong_close', 'strong', -1, child.level));
+        
+        newChildren.push(strongOpen, child, strongClose);
+        contentParts.push('**', child.content, '**');
+      } else {
+        newChildren.push(child);
+        if (child.type === 'text') {
+          contentParts.push(child.content);
+        } else if (child.type === 'em_open' || child.type === 'em_close') {
+          contentParts.push('*');
+        }
       }
     }
     
-    if (pairs.length >= 2) {
-      const firstPair = pairs[0];
-      const lastPair = pairs[pairs.length - 1];
-      
-      const newChildren = [];
-      const contentParts = [];
-      
-      // Helper function to add children and build content
-      const addChildrenRange = (start, end) => {
-        for (let i = start; i < end; i++) {
-          newChildren.push(children[i]);
-          if (children[i].type === 'text') {
-            contentParts.push(children[i].content);
-          } else if (children[i].type === 'em_open' || children[i].type === 'em_close') {
-            contentParts.push('*');
-          }
-        }
-      };
-      
-      // Add content before first pair
-      addChildrenRange(0, firstPair.open);
-      
-      // Add content from first pair (without the strong tags)
-      addChildrenRange(firstPair.open + 1, firstPair.close);
-      
-      // Add content between first and last pairs with strong wrapping
-      for (let i = firstPair.close + 1; i < lastPair.open; i++) {
-        if (children[i].type === 'text' && children[i].content.trim() !== '') {
-          // Create strong tokens more efficiently
-          const strongOpen = Object.create(children[i].constructor.prototype);
-          Object.assign(strongOpen, createTokenTemplate('strong_open', 'strong', 1, children[i].level));
-          
-          const strongClose = Object.create(children[i].constructor.prototype);
-          Object.assign(strongClose, createTokenTemplate('strong_close', 'strong', -1, children[i].level));
-          
-          newChildren.push(strongOpen, children[i], strongClose);
-          contentParts.push('**', children[i].content, '**');
-        } else {
-          newChildren.push(children[i]);
-          if (children[i].type === 'text') {
-            contentParts.push(children[i].content);
-          } else if (children[i].type === 'em_open' || children[i].type === 'em_close') {
-            contentParts.push('*');
-          }
-        }
-      }
-      
-      // Add content from last pair (without the strong tags)
-      addChildrenRange(lastPair.open + 1, lastPair.close);
-      
-      // Add content after last pair
-      addChildrenRange(lastPair.close + 1, children.length);
-      
-      inline.content = contentParts.join('');
-      inline.children = newChildren;
-    }
+    // Add content from last pair (without the strong tags)
+    addChildrenRange(lastPair.open + 1, lastPair.close);
     
+    // Add content after last pair
+    addChildrenRange(lastPair.close + 1, children.length);
+    
+    inline.content = contentParts.join('');
+    inline.children = newChildren;
   } else if (openCount === 1) {
     // Single strong pair: remove completely
-    const strongOpen = strongPositions.find(p => p.type === 'open').index;
-    const strongClose = strongPositions.find(p => p.type === 'close').index;
+    const strongOpen = firstOpen;
+    const strongClose = firstClose;
+    if (strongOpen < 0 || strongClose < 0) {
+      return;
+    }
     
     const newChildren = [];
     const contentParts = [];
@@ -149,74 +209,74 @@ const removeStrongWrappers = (inline) => {
   }
 }
 
-const addTheadThScope = (state, theadVar) => {
-  let isEmpty = false;
+const addTheadThScope = (state, theadVar, allowFallback) => {
+  const tokens = state.tokens;
   let firstThPos = theadVar.pos;
   let j = theadVar.i + 2;
   //if (state.tokens[theadVar.i + 1].type !== 'tr_open') return threadVar
-  while (j < state.tokens.length) {
-    if (state.tokens[j].type === 'th_open') {
-      state.tokens[j].attrPush(['scope', 'col']);
+  while (j < tokens.length) {
+    if (tokens[j].type === 'th_open') {
+      tokens[j].attrPush(['scope', 'col']);
       if (j === theadVar.i + 2) {
-        isEmpty =  state.tokens[j+1].content === ''
-        let isStrong = checkedTdReg.test(state.tokens[j+1].content)
-        if (isStrong) {
+        const inline = tokens[j + 1];
+        const content = inline.content;
+        if (content === '' || isStrongWrappedInline(inline, allowFallback)) {
           firstThPos = j
           // Only remove strong tags from the first th content for matrix processing
           // The actual removal will be done in changeTdToTh if matrix conditions are met
-        } else if (isEmpty) {
-          firstThPos = j
         }
       }
     }
-    if (state.tokens[j].type === 'tr_close') break
+    if (tokens[j].type === 'tr_close') break
     j++
   }
-  return {i: j, firstThPos: firstThPos, isEmpty: isEmpty}
+  return {i: j, firstThPos: firstThPos}
 }
 
-const changeTdToTh = (state, tdPoses, hasThead) => {
+const changeTdToTh = (state, tdPoses, hasThead, allowFallback) => {
   //console.log('hasThead: ' + hasThead +  ', tdPoses: ' + tdPoses)
+  const tokens = state.tokens;
   let j = 0
   while(j < tdPoses.length) {
     //console.log('state.tokens[' +  j + '].type: ' + state.tokens[tdPoses[j]].type)
     const pos = tdPoses[j]
     if (j > 0 || (!hasThead && j === 0)) {
-      state.tokens[pos].type = 'th_open';
-      state.tokens[pos].tag = 'th';
-      state.tokens[pos].attrPush(['scope', 'row']);
-      state.tokens[pos + 2].type = 'th_close';
-      state.tokens[pos + 2].tag = 'th';
+      tokens[pos].type = 'th_open';
+      tokens[pos].tag = 'th';
+      tokens[pos].attrPush(['scope', 'row']);
+      tokens[pos + 2].type = 'th_close';
+      tokens[pos + 2].tag = 'th';
     }
 
     // Remove strong tags that wrap the entire content
-    const inline = state.tokens[pos + 1];
-    removeStrongWrappers(inline);
+    const inline = tokens[pos + 1];
+    removeStrongWrappers(inline, allowFallback);
     j++
   }
 }
 
-const checkTbody = (state, tbodyVar) => {
+const checkTbody = (state, tbodyVar, allowFallback) => {
+  const tokens = state.tokens;
   let isAllFirstTh = true
   let tbodyFirstThPoses = []
   let j = tbodyVar.i + 1
-  while (j < state.tokens.length) {
-    if (state.tokens[j].type === 'tr_open') {
+  while (j < tokens.length) {
+    if (tokens[j].type === 'tr_open') {
       j++
-      if (state.tokens[j].type === 'td_open' && state.tokens[j + 1].content.match(checkedTdReg)) {
+      if (tokens[j].type === 'td_open' && isStrongWrappedInline(tokens[j + 1], allowFallback)) {
         tbodyFirstThPoses.push(j)
       } else {
         isAllFirstTh = false
         break
       }
     }
-    if (state.tokens[j].type === 'tbody_close') break
+    if (tokens[j].type === 'tbody_close') break
     j++
   }
   return { i: j, isAllFirstTh: isAllFirstTh, tbodyFirstThPoses: tbodyFirstThPoses}
 }
 
-const setColgroup = (state, tableOpenIdx, opt) => {
+const setColgroup = (state, tableOpenIdx, opt, allowFallback) => {
   const tokens = state.tokens;
   const Token = state.Token;
   
@@ -244,23 +304,36 @@ const setColgroup = (state, tableOpenIdx, opt) => {
     // Calculate group names and colspan for the first row of th
     const groupData = {
       spans: [],
-      names: [],
       rawNames: [],
       headerCount: 0
     };
     
-    let thIdx = tr1 + 1;
-    const thTokens = [];
+    const colgroupMatchReg = opt.colgroupWithNoAsterisk
+      ? /^([^:：]+)(?::|：)\s*/
+      : /^\*\*([^*:：]+)[:：]\*\*\s*/;
+    const origColgroupMatchReg = opt.colgroupWithNoAsterisk
+      ? /^[^:：]+(?::|：)\s*(.*)$/
+      : /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/;
     
-    while (thIdx < tokens.length && tokens[thIdx].type !== 'tr_close') {
-      if (tokens[thIdx].type === 'th_open') {
-        thTokens.push(thIdx);
+    let thIdx = tr1 + 1;
+    const origThs = [];
+    let trCloseIdx = -1;
+    
+    while (thIdx < tokens.length) {
+      const tokenType = tokens[thIdx].type;
+      if (tokenType === 'th_open') {
         const inline = tokens[thIdx + 1];
+        origThs.push(inline);
         const content = inline.content;
-        const colgroupMatchReg = opt.colgroupWithNoAsterisk
-          ? /^([^:：]+)(?::|：)\s*/
-          : /^\*\*([^*:：]+)[:：]\*\*\s*/;
-        const match = content.match(colgroupMatchReg);
+        const hasLeadingStrong = hasLeadingStrongMarker(inline, allowFallback);
+        let match = null;
+        if (opt.colgroupWithNoAsterisk) {
+          if (content.indexOf(':') !== -1 || content.indexOf('：') !== -1) {
+            match = content.match(colgroupMatchReg);
+          }
+        } else if (hasLeadingStrong) {
+          match = content.match(colgroupMatchReg);
+        }
 
         if (match) {
           const group = match[1].trim();
@@ -277,6 +350,9 @@ const setColgroup = (state, tableOpenIdx, opt) => {
           groupData.rawNames.push(null);
           groupData.spans.push(1);
         }
+      } else if (tokenType === 'tr_close') {
+        trCloseIdx = thIdx;
+        break;
       }
       thIdx++;
     }
@@ -284,15 +360,7 @@ const setColgroup = (state, tableOpenIdx, opt) => {
     // If there are not two or more grouped header cells, do not auto-generate
     if (groupData.headerCount < 2) return;
     
-    // Determine group names
-    const nonNullGroups = groupData.rawNames.filter(name => name !== null);
-    const allSame = nonNullGroups.length > 0 && nonNullGroups.every(name => name === nonNullGroups[0]);
-    
-    if (allSame) {
-      groupData.names = [...groupData.rawNames];
-    } else {
-      groupData.names = [...groupData.rawNames];
-    }
+    const groupNames = groupData.rawNames;
     
     // Generate colgroup if needed
     const hasSpan = groupData.spans.some(span => span > 1);
@@ -322,13 +390,12 @@ const setColgroup = (state, tableOpenIdx, opt) => {
       
       // Update indices
       const offset = insertTokens.length;
-      theadOpen += offset;
       tr1 += offset;
       theadClose += offset;
+      trCloseIdx += offset;
     }
     
     // Generate two-row header
-    const trCloseIdx = tokens.findIndex((t, idx) => idx > tr1 && t.type === 'tr_close');
     
     // Create new rows more efficiently
     const newTr1 = [
@@ -342,37 +409,21 @@ const setColgroup = (state, tableOpenIdx, opt) => {
       Object.assign(new Token('text', '', 0), { content: '\n' })
     ];
     
-    // Enumerate th_open/inline between tr1 and trCloseIdx
-    const origThs = [];
-    for (let i = tr1 + 1; i < trCloseIdx; i++) {
-      if (tokens[i].type === 'th_open') {
-        origThs.push({
-          th_open: tokens[i],
-          inline: tokens[i + 1]
-        });
-      }
-    }
-    
     let thPtr = 0;
     for (let i = 0; i < groupData.spans.length; i++) {
-      if (groupData.names[i] === null) {
+      if (groupNames[i] === null) {
         // Leftmost cell: rowspan=2
         const thOpen = new Token('th_open', 'th', 1);
         thOpen.attrSet('rowspan', '2');
         thOpen.attrSet('scope', 'col');
         
         const thInline = new Token('inline', '', 0);
-        const origInline = origThs[thPtr]?.inline;
+        const origInline = origThs[thPtr];
         
         if (origInline) {
-          // Create a copy for processing
-          const tempInline = {
-            content: origInline.content,
-            children: origInline.children ? [...origInline.children] : []
-          };
-          removeStrongWrappers(tempInline);
-          thInline.content = tempInline.content;
-          thInline.children = tempInline.children;
+          removeStrongWrappers(origInline, allowFallback);
+          thInline.content = origInline.content;
+          thInline.children = Array.isArray(origInline.children) ? origInline.children : [];
         } else {
           thInline.content = '';
           thInline.children = [];
@@ -394,8 +445,8 @@ const setColgroup = (state, tableOpenIdx, opt) => {
         thOpen.attrSet('scope', 'col');
         
         const thInline = new Token('inline', '', 0);
-        thInline.content = groupData.names[i];
-        thInline.children = [{ type: 'text', content: groupData.names[i], level: 0 }];
+        thInline.content = groupNames[i];
+        thInline.children = [{ type: 'text', content: groupNames[i], level: 0 }];
         
         newTr1.push(
           thOpen,
@@ -410,11 +461,16 @@ const setColgroup = (state, tableOpenIdx, opt) => {
           th2Open.attrSet('scope', 'col');
           
           const th2Inline = new Token('inline', '', 0);
-          const orig = origThs[thPtr]?.inline?.content || '';
-          const origColgroupMatchReg = opt.colgroupWithNoAsterisk
-            ? /^[^:：]+(?::|：)\s*(.*)$/
-            : /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/;
-          const match = orig.match(origColgroupMatchReg);
+          const origInline = origThs[thPtr];
+          const orig = origInline?.content || '';
+          let match = null;
+          if (opt.colgroupWithNoAsterisk) {
+            if (orig.indexOf(':') !== -1 || orig.indexOf('：') !== -1) {
+              match = orig.match(origColgroupMatchReg);
+            }
+          } else if (hasLeadingStrongMarker(origInline, allowFallback)) {
+            match = orig.match(origColgroupMatchReg);
+          }
           th2Inline.content = match ? match[1] : orig;
           th2Inline.children = [{ type: 'text', content: th2Inline.content, level: 0 }];
           
@@ -469,11 +525,12 @@ const setColgroup = (state, tableOpenIdx, opt) => {
           const tdIdx = j + 1;
           if (tokens[tdIdx].type === 'td_open') {
             const inline = tokens[tdIdx + 1];
-            if (inline && typeof inline.content === 'string' && checkedTdReg.test(inline.content)) {
+            if (inline && typeof inline.content === 'string' &&
+                isStrongWrappedInline(inline, allowFallback)) {
               tokens[tdIdx].type = 'th_open';
               tokens[tdIdx].tag = 'th';
               tokens[tdIdx].attrSet('scope', 'row');
-              removeStrongWrappers(inline);
+              removeStrongWrappers(inline, allowFallback);
               if (tokens[tdIdx + 2].type === 'td_close') {
                 tokens[tdIdx + 2].type = 'th_close';
                 tokens[tdIdx + 2].tag = 'th';
@@ -492,16 +549,20 @@ const setColgroup = (state, tableOpenIdx, opt) => {
   // Calculate group names and colspan for multi-row case
   const groupData = {
     spans: [],
-    names: [],
     rawNames: []
   };
+  const groupMatchReg = /^\*\*([^*:]+):\*\*/;
   
   let thIdx = tr1 + 1;
   while (thIdx < tokens.length && tokens[thIdx].type !== 'tr_close') {
     if (tokens[thIdx].type === 'th_open') {
       const inline = tokens[thIdx + 1];
       const content = inline.content;
-      const match = content.match(/^\*\*([^*:]+):\*\*/);
+      const hasLeadingStrong = hasLeadingStrongMarker(inline, allowFallback);
+      let match = null;
+      if (hasLeadingStrong) {
+        match = content.match(groupMatchReg);
+      }
       
       if (match) {
         const group = match[1].trim();
@@ -521,7 +582,8 @@ const setColgroup = (state, tableOpenIdx, opt) => {
     thIdx++;
   }
   
-  groupData.names = [...groupData.rawNames];
+  const groupNames = groupData.rawNames;
+  const groupStripReg = /^\*\*[^*:]+:\*\*\s*(.*)$/;
   
   // Generate colgroup if needed
   const hasSpan = groupData.spans.some(span => span > 1);
@@ -544,11 +606,11 @@ const setColgroup = (state, tableOpenIdx, opt) => {
   let th1 = tr1 + 1, th2 = tr2 + 1, groupIdx = 0;
   while (th1 < tokens.length && tokens[th1].type !== 'tr_close') {
     if (tokens[th1].type === 'th_open') {
-      if (groupData.names[groupIdx] === null) {
+      if (groupNames[groupIdx] === null) {
         // Leftmost cell: rowspan=2
         tokens[th1].attrSet('rowspan', '2');
         tokens[th1].attrSet('scope', 'col');
-        removeStrongWrappers(tokens[th1 + 1]);
+        removeStrongWrappers(tokens[th1 + 1], allowFallback);
         
         // Find corresponding th in second row
         let t2 = th2;
@@ -567,7 +629,7 @@ const setColgroup = (state, tableOpenIdx, opt) => {
           tokens[th1].attrSet('colspan', groupData.spans[groupIdx].toString());
         }
         tokens[th1].attrSet('scope', 'col');
-        tokens[th1 + 1].content = groupData.names[groupIdx];
+        tokens[th1 + 1].content = groupNames[groupIdx];
         
         // Process corresponding ths in second row
         let count = 0, t2 = th2;
@@ -575,8 +637,12 @@ const setColgroup = (state, tableOpenIdx, opt) => {
           if (tokens[t2].type === 'th_open') {
             tokens[t2].attrSet('scope', 'col');
             // Remove group name part from content
-            const t2content = tokens[t2 + 1].content;
-            const t2match = t2content.match(/^\*\*[^*:]+:\*\*\s*(.*)$/);
+            const t2Inline = tokens[t2 + 1];
+            const t2content = t2Inline.content;
+            let t2match = null;
+            if (hasLeadingStrongMarker(t2Inline, allowFallback)) {
+              t2match = t2content.match(groupStripReg);
+            }
             if (t2match) {
               tokens[t2 + 1].content = t2match[1];
             }
@@ -594,7 +660,8 @@ const setColgroup = (state, tableOpenIdx, opt) => {
 
 const tableEx = (state, opt) => {
   const tokens = state.tokens;
-  const tokenLength = tokens.length;
+  let tokenLength = tokens.length;
+  const allowStrongFallback = !hasInlineRule(state.md, 'strong_ja');
   
   let idx = 0;
   while (idx < tokenLength) {
@@ -611,54 +678,57 @@ const tableEx = (state, opt) => {
       const linebreakToken = new state.Token('text', '', 0);
       linebreakToken.content = '\n';
       tokens.splice(idx, 0, wrapperStartToken, linebreakToken);
+      tokenLength += 2;
       idx += 2;
     }
     
     let theadVar = {
       i: idx + 1,
       firstThPos: -1,
-      isEmpty: false,
     };
     
     const hasThead = tokens[theadVar.i] && tokens[theadVar.i].type === 'thead_open';
     if (hasThead) {
-      theadVar = addTheadThScope(state, theadVar);
+      theadVar = addTheadThScope(state, theadVar, allowStrongFallback);
       idx = theadVar.i + 1;
       if (opt.colgroup) {
-        setColgroup(state, tableOpenIdx, opt);
+        const beforeLength = tokens.length;
+        setColgroup(state, tableOpenIdx, opt, allowStrongFallback);
+        tokenLength += tokens.length - beforeLength;
       }
     }
     
-    let tbodyVar = {
-      i: idx + 1,
-      isAllFirstTh: false,
-      tbodyFirstThPoses: [],
-    };
-    
-    const hasTbody = tokens[tbodyVar.i] && tokens[tbodyVar.i].type === 'tbody_open';
-    if (hasTbody) {
-      tbodyVar = checkTbody(state, tbodyVar);
-      idx = tbodyVar.i + 1;
-    }
-    
-    if (theadVar.firstThPos && tbodyVar.isAllFirstTh) {
-      const firstTdPoses = [...tbodyVar.tbodyFirstThPoses];
-      if (hasThead) {
-        firstTdPoses.unshift(theadVar.firstThPos);
+    if (opt.matrix) {
+      let tbodyVar = {
+        i: idx + 1,
+        isAllFirstTh: false,
+        tbodyFirstThPoses: [],
+      };
+      
+      const hasTbody = tokens[tbodyVar.i] && tokens[tbodyVar.i].type === 'tbody_open';
+      if (hasTbody) {
+        tbodyVar = checkTbody(state, tbodyVar, allowStrongFallback);
+        idx = tbodyVar.i + 1;
       }
-      if (opt.matrix) {
-        changeTdToTh(state, firstTdPoses, hasThead, theadVar);
+      
+      if (theadVar.firstThPos && tbodyVar.isAllFirstTh) {
+        const firstTdPoses = [...tbodyVar.tbodyFirstThPoses];
+        if (hasThead) {
+          firstTdPoses.unshift(theadVar.firstThPos);
+        }
+        changeTdToTh(state, firstTdPoses, hasThead, allowStrongFallback);
       }
     }
     
     // Find table_close more efficiently
-    while (idx < tokens.length) {
+    while (idx < tokenLength) {
       if (tokens[idx].type === 'table_close') {
         if (opt.wrapper) {
           const wrapperEndToken = new state.Token('div_close', 'div', -1);
           const linebreakToken = new state.Token('text', '', 0);
           linebreakToken.content = '\n';
           tokens.splice(idx + 1, 0, wrapperEndToken, linebreakToken);
+          tokenLength += 2;
           idx += 2;
         }
         break;

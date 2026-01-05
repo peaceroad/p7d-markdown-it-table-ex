@@ -22,6 +22,10 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
   }).use(mditTableEx)
 ```
 
+## StrongJa detection
+
+When `@peaceroad/markdown-it-strong-ja` is registered, this plugin detects `**` markers by checking the inline rule named `strong_ja` and relies on inline tokens. If that rule is not present, it falls back to simple `**` string checks so matrix/colgroup still work without strongJa.
+
 ## Extended notation
 
 ### matrix

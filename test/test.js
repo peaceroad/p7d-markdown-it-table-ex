@@ -12,7 +12,12 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
     headerless: true,
     multiline: true,
     rowspan: true,
-  }).use(mditTableEx).use(mditStrongJa)
+  }).use(mditTableEx)
+const mdStrongJa = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, { colgroup: true }).use(mditStrongJa)
 const mdWrapper = mdit({ html: true }).use(mditMultimdTable, {
     headerless: true,
     multiline: true,
@@ -50,6 +55,7 @@ const testData = {
   wrapperWithCaption: __dirname + path.sep + 'examples_wrapper_with_caption.txt',
   colgroup: __dirname + path.sep + 'examples_colgroup.txt',
   colgroupWithNoAsterisk: __dirname + path.sep + 'examples_colgroup_with_no_asterisk.txt',
+  strongJa: __dirname + path.sep + 'examples_strongja.txt',
 }
 
 const getTestData = (pat) => {
@@ -132,5 +138,6 @@ pass = runTest(mdWrapper, testData.wrapper, pass)
 pass = runTest(mdWrapperWithCaption, testData.wrapperWithCaption, pass)
 pass = runTest(mdColgruop, testData.colgroup, pass)
 pass = runTest(mdColgruopWithNoAsterisk, testData.colgroupWithNoAsterisk, pass)
+pass = runTest(mdStrongJa, testData.strongJa, pass)
 
 if (pass) console.log('Passed all test.')
