@@ -34,15 +34,17 @@ const isStrongWrappedInline = (inline, allowFallback) => {
   if (!inline || typeof inline.content !== 'string') return false;
   const content = inline.content;
   if (!content.startsWith('**') || !content.endsWith('**')) return false;
-  if (!Array.isArray(inline.children)) return !!allowFallback;
-  if (getLeadingStrongCloseIndex(inline) !== -1) return true;
-  return !!allowFallback;
+  if (allowFallback) return true;
+  if (!Array.isArray(inline.children)) return false;
+  return getLeadingStrongCloseIndex(inline) !== -1;
 };
 
 const hasLeadingStrongMarker = (inline, allowFallback) => {
-  if (getLeadingStrongCloseIndex(inline) !== -1) return true;
-  if (!allowFallback || !inline || typeof inline.content !== 'string') return false;
-  return inline.content.startsWith('**');
+  if (!inline || typeof inline.content !== 'string') return false;
+  if (!inline.content.startsWith('**')) return false;
+  if (allowFallback) return true;
+  if (!Array.isArray(inline.children)) return false;
+  return getLeadingStrongCloseIndex(inline) !== -1;
 };
 
 const hasInlineRule = (md, name) => {
@@ -316,14 +318,20 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback) => {
       : /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/;
     
     let thIdx = tr1 + 1;
-    const origThs = [];
+    const origThInfos = [];
     let trCloseIdx = -1;
     
     while (thIdx < tokens.length) {
       const tokenType = tokens[thIdx].type;
       if (tokenType === 'th_open') {
         const inline = tokens[thIdx + 1];
-        origThs.push(inline);
+        let map = null;
+        if (Array.isArray(tokens[thIdx].map)) {
+          map = tokens[thIdx].map.slice();
+        } else if (inline && Array.isArray(inline.map)) {
+          map = inline.map.slice();
+        }
+        origThInfos.push({ inline, map });
         const content = inline.content;
         const hasLeadingStrong = hasLeadingStrongMarker(inline, allowFallback);
         let match = null;
@@ -411,19 +419,23 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback) => {
     
     let thPtr = 0;
     for (let i = 0; i < groupData.spans.length; i++) {
+      const origInfo = origThInfos[thPtr];
+      const cellMap = origInfo && origInfo.map ? origInfo.map : null;
       if (groupNames[i] === null) {
         // Leftmost cell: rowspan=2
         const thOpen = new Token('th_open', 'th', 1);
         thOpen.attrSet('rowspan', '2');
         thOpen.attrSet('scope', 'col');
+        if (cellMap) thOpen.map = cellMap;
         
         const thInline = new Token('inline', '', 0);
-        const origInline = origThs[thPtr];
+        const origInline = origInfo ? origInfo.inline : null;
         
         if (origInline) {
           removeStrongWrappers(origInline, allowFallback);
           thInline.content = origInline.content;
           thInline.children = Array.isArray(origInline.children) ? origInline.children : [];
+          if (cellMap) thInline.map = cellMap;
         } else {
           thInline.content = '';
           thInline.children = [];
@@ -443,10 +455,12 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback) => {
           thOpen.attrSet('colspan', groupData.spans[i].toString());
         }
         thOpen.attrSet('scope', 'col');
+        if (cellMap) thOpen.map = cellMap;
         
         const thInline = new Token('inline', '', 0);
         thInline.content = groupNames[i];
         thInline.children = [{ type: 'text', content: groupNames[i], level: 0 }];
+        if (cellMap) thInline.map = cellMap;
         
         newTr1.push(
           thOpen,
@@ -457,11 +471,14 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback) => {
         
         // Second row: each item in the group
         for (let j = 0; j < groupData.spans[i]; j++) {
+          const subInfo = origThInfos[thPtr];
+          const subMap = subInfo && subInfo.map ? subInfo.map : null;
           const th2Open = new Token('th_open', 'th', 1);
           th2Open.attrSet('scope', 'col');
+          if (subMap) th2Open.map = subMap;
           
           const th2Inline = new Token('inline', '', 0);
-          const origInline = origThs[thPtr];
+          const origInline = subInfo ? subInfo.inline : null;
           const orig = origInline?.content || '';
           let match = null;
           if (opt.colgroupWithNoAsterisk) {
@@ -473,6 +490,7 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback) => {
           }
           th2Inline.content = match ? match[1] : orig;
           th2Inline.children = [{ type: 'text', content: th2Inline.content, level: 0 }];
+          if (subMap) th2Inline.map = subMap;
           
           newTr2.push(
             th2Open,
@@ -675,6 +693,9 @@ const tableEx = (state, opt) => {
     if (opt.wrapper) {
       const wrapperStartToken = new state.Token('div_open', 'div', 1);
       wrapperStartToken.attrPush(['class', 'table-wrapper']);
+      if (Array.isArray(tokens[idx].map)) {
+        wrapperStartToken.map = tokens[idx].map.slice();
+      }
       const linebreakToken = new state.Token('text', '', 0);
       linebreakToken.content = '\n';
       tokens.splice(idx, 0, wrapperStartToken, linebreakToken);
