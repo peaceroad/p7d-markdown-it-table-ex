@@ -1,0 +1,36 @@
+[Markdown]
+| | **group:** hh1 | **group:** hh2 |
+| --- | --- | --- |
+| **vh1** | 11 | 12 |
+| **vh2** | 21 | 22 |
+[HTML]
+<div class="table-wrapper">
+<table>
+<colgroup>
+<col>
+<col span="2">
+</colgroup>
+<thead>
+<tr>
+<th rowspan="2" scope="col"></th>
+<th colspan="2" scope="col">group</th>
+</tr>
+<tr>
+<th scope="col">hh1</th>
+<th scope="col">hh2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row">vh1</th>
+<td>11</td>
+<td>12</td>
+</tr>
+<tr>
+<th scope="row">vh2</th>
+<td>21</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+</div>

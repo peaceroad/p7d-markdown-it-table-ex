@@ -23,11 +23,41 @@ const mdWrapper = mdit({ html: true }).use(mditMultimdTable, {
     multiline: true,
     rowspan: true,
   }).use(mditTableEx, { wrapper: true })
+const mdMatrixOff = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, { matrix: false })
+const mdMatrixOffColgroup = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, {
+    matrix: false,
+    colgroup: true,
+  })
+const mdMatrixOffWrapperColgroup = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, {
+    matrix: false,
+    wrapper: true,
+    colgroup: true,
+  })
 const mdWrapperWithCaption = mdit({ html: true }).use(mditFigureWithPCaption).use(mditMultimdTable, {
     headerless: true,
     multiline: true,
     rowspan: true,
   }).use(mditTableEx, { wrapper: true })
+const mdWrapperColgroup = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx, {
+    wrapper: true,
+    colgroup: true,
+  })
 const mdColgruop = mdit({ html: true }).use(mditMultimdTable, {
     headerless: true,
     multiline: true,
@@ -51,8 +81,12 @@ if (isWindows) {
 
 const testData = {
   noOption: __dirname + path.sep +  'examples.txt',
+  matrixOff: __dirname + path.sep + 'examples_matrix_off.txt',
+  matrixOffColgroup: __dirname + path.sep + 'examples_matrix_off_colgroup.txt',
+  matrixOffWrapperColgroup: __dirname + path.sep + 'examples_matrix_off_wrapper_colgroup.txt',
   wrapper: __dirname + path.sep + 'examples_wrapper.txt',
   wrapperWithCaption: __dirname + path.sep + 'examples_wrapper_with_caption.txt',
+  wrapperColgroup: __dirname + path.sep + 'examples_wrapper_colgroup.txt',
   colgroup: __dirname + path.sep + 'examples_colgroup.txt',
   colgroupWithNoAsterisk: __dirname + path.sep + 'examples_colgroup_with_no_asterisk.txt',
   strongJa: __dirname + path.sep + 'examples_strongja.txt',
@@ -134,8 +168,12 @@ const runTest = (process, pat, pass, testId) => {
 
 let pass = true
 pass = runTest(md, testData.noOption, pass)
+pass = runTest(mdMatrixOff, testData.matrixOff, pass)
+pass = runTest(mdMatrixOffColgroup, testData.matrixOffColgroup, pass)
+pass = runTest(mdMatrixOffWrapperColgroup, testData.matrixOffWrapperColgroup, pass)
 pass = runTest(mdWrapper, testData.wrapper, pass)
 pass = runTest(mdWrapperWithCaption, testData.wrapperWithCaption, pass)
+pass = runTest(mdWrapperColgroup, testData.wrapperColgroup, pass)
 pass = runTest(mdColgruop, testData.colgroup, pass)
 pass = runTest(mdColgruopWithNoAsterisk, testData.colgroupWithNoAsterisk, pass)
 pass = runTest(mdStrongJa, testData.strongJa, pass)

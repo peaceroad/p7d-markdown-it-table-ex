@@ -40,10 +40,13 @@ strongJa-aware behavior is decided.
 ## Matrix behavior
 
 - `addTheadThScope()` sets `scope="col"` in the header and tracks the
-  first header cell if it is empty or strong-wrapped.
+  first header cell if it is empty or strong-wrapped. Scope is applied to
+  all `th` cells in `thead`, including multi-row headers.
 - `checkTbody()` checks whether every body row starts with a strong-wrapped
   cell. If so, `changeTdToTh()` converts those to `th` with `scope="row"`,
   and removes strong wrappers from the inline content.
+- Matrix conversion runs only when `matrix` is enabled, even if `colgroup`
+  rewrites the header structure.
 
 ## Colgroup behavior
 
@@ -62,3 +65,17 @@ strongJa-aware behavior is decided.
 - `test/test.js` runs multiple fixtures with different plugin options.
 - `test/examples_strongja.txt` is rendered with strongJa enabled to
   validate token-based detection in more complex inline content.
+- `test/examples_colgroup.txt` includes multi-row header fixtures
+  (half-width/full-width colon) to validate existing-`thead` colgroup
+  transformations.
+- `test/examples_colgroup_with_no_asterisk.txt` includes
+  `colgroupWithNoAsterisk` edge cases, including `foods:hh1` (no space,
+  no group) and multi-row full-width-colon grouping.
+- `test/examples_wrapper_colgroup.txt` validates `wrapper + colgroup`
+  interaction so `<colgroup>` is inserted inside `<table>`.
+- `test/examples_matrix_off.txt` and
+  `test/examples_matrix_off_colgroup.txt` validate that `matrix: false`
+  keeps body first-column `**...**` as `td` (no row-header conversion),
+  including when `colgroup` is enabled.
+- `test/examples_matrix_off_wrapper_colgroup.txt` extends the same
+  guarantee to `matrix: false + wrapper + colgroup`.

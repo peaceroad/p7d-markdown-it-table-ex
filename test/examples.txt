@@ -28,6 +28,47 @@
 
 
 [Markdown]
+|             |   Grouping    |              |
+|             |               |  Grouping 2  |
+First Header  | Second Header | Third Header |
+------------  | :-----------: | -----------: |
+Content       |   **Cell**    |         Cell |
+New section   |     More      |         Data |
+[HTML]
+<table>
+<thead>
+<tr>
+<th scope="col"></th>
+<th style="text-align:center" scope="col">Grouping</th>
+<th style="text-align:right" scope="col"></th>
+</tr>
+<tr>
+<th scope="col"></th>
+<th style="text-align:center" scope="col"></th>
+<th style="text-align:right" scope="col">Grouping 2</th>
+</tr>
+<tr>
+<th scope="col">First Header</th>
+<th style="text-align:center" scope="col">Second Header</th>
+<th style="text-align:right" scope="col">Third Header</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Content</td>
+<td style="text-align:center"><strong>Cell</strong></td>
+<td style="text-align:right">Cell</td>
+</tr>
+<tr>
+<td>New section</td>
+<td style="text-align:center">More</td>
+<td style="text-align:right">Data</td>
+</tr>
+</tbody>
+</table>
+
+
+[Markdown]
 |     | hh1  | hh2  |
 | --- | ---- | ---- |
 | vh1 |  11  |  12  |
