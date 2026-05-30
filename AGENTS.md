@@ -29,13 +29,14 @@ strongJa-aware behavior is decided.
 
 ## Strong wrapper handling
 
-- `getLeadingStrongCloseIndex()` and `isStrongWrappedInline()` confirm
-  that the inline content is wrapped by a leading `strong_open` and a
-  matching `strong_close`. This avoids false positives from `**` text.
-- `removeStrongWrappers()` removes a full strong wrapper when converting
-  matrix headers or building colgroup headers. It handles:
-  - Simple `strong_open` + `text` + `strong_close`.
-  - Multiple strong pairs while preserving nested emphasis and text.
+- `getStrongTokenFlags()` and `isStrongWrappedInline()` confirm that parsed
+  inline tokens support the raw `**...**` marker boundary. When no strong
+  tokens exist and strongJa is absent, the raw string fallback remains for
+  standard markdown-it compatibility.
+- `removeStrongWrappers()` removes the outer `**` marker pair by reparsing
+  the remaining inline content with the active markdown-it inline parser.
+  This preserves nested emphasis, code, and inline HTML behavior without
+  hand-editing child token ranges.
 
 ## Matrix behavior
 
@@ -60,6 +61,26 @@ strongJa-aware behavior is decided.
 - When the header already has two rows, the plugin sets `colspan`/`rowspan`
   and strips the `**group:**` prefix from the second row.
 
+## Synthetic token metadata
+
+- Inserted wrapper and colgroup/header tokens receive level/map metadata
+  comparable to `markdown-it-multimd-table`'s table tokens:
+  - `div.table-wrapper` inherits the table level and opening map.
+  - Generated `<colgroup>` tokens use the table-child level and the
+    nearest header-row map.
+  - Generated two-row header `tr`/`th`/`inline` tokens use the existing
+    `thead`/row/cell level pattern and inherit source header maps.
+- Existing table subtree levels are not rewritten when adding the wrapper;
+  this avoids broad token churn and keeps HTML output compatibility.
+
+## Options and registration
+
+- Public options are `matrix`, `wrapper`, `colgroup`, and
+  `colgroupWithNoAsterisk`.
+- The plugin is registered at most once per `markdown-it` instance. Reusing
+  the same instance with different table-ex options is intentionally rejected;
+  create a separate `markdown-it` instance for another option set.
+
 ## Tests
 
 - `test/test.js` runs multiple fixtures with different plugin options.
@@ -79,3 +100,6 @@ strongJa-aware behavior is decided.
   including when `colgroup` is enabled.
 - `test/examples_matrix_off_wrapper_colgroup.txt` extends the same
   guarantee to `matrix: false + wrapper + colgroup`.
+- Direct assertions in `test/test.js` cover duplicate registration,
+  malformed strong-marker fallback, and representative synthetic token
+  `level`/`map` metadata.

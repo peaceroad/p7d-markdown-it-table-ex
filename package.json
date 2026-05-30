@@ -16,9 +16,9 @@
   "author": "peaceroad <peaceroad@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@peaceroad/markdown-it-figure-with-p-caption": "^0.16.0",
-    "@peaceroad/markdown-it-strong-ja": "^0.7.2",
-    "markdown-it": "^14.1.0",
+    "@peaceroad/markdown-it-figure-with-p-caption": "^0.18.0",
+    "@peaceroad/markdown-it-strong-ja": "^0.9.1",
+    "markdown-it": "^14.1.1",
     "markdown-it-multimd-table": "^4.2.3"
   }
 }

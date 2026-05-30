@@ -26,6 +26,8 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
 
 When `@peaceroad/markdown-it-strong-ja` is registered, this plugin detects `**` markers by checking the inline rule named `strong_ja` and relies on inline tokens. If that rule is not present, it falls back to simple `**` string checks so matrix/colgroup still work without strongJa.
 
+Install this plugin only once per `markdown-it` instance; create a separate instance if you need a different option set.
+
 ## Extended notation
 
 ### matrix
@@ -92,7 +94,7 @@ If the leftmost cell of the table is surrounded by `**`, it will be converted to
 
 ### wrapper
 
-colgroup will be enabled as follows:
+wrapper will be enabled as follows:
 
 ```js
 const md = mdit({ html: true }).use(mditMultimdTable, {
@@ -153,7 +155,7 @@ const md = mdit({ html: true }).use(mditMultimdTable, {
   })
 ```
 
-If you use grouped header notation in the table header (e.g., `**group:** hh1`), `<colgroup>` and `<thead>` with two tr lines will be generated. If there is no grouped header notation or only one, a normal single-row header is output and no colgroup is generated.
+If you use grouped header notation in the table header (e.g., `**group:** hh1`), a `<thead>` with two tr lines will be generated. A `<colgroup>` is generated when at least one adjacent group spans multiple columns. If there is no grouped header notation or only one, a normal single-row header is output and no colgroup is generated.
 
 In other words, to determine the group, if there is `**` at the beginning of a cell followed by `:**` (`：**`), it becomes a candidate, and is determined by matching it with the adjacent cells.
 
