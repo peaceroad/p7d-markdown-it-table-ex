@@ -29,14 +29,14 @@ strongJa-aware behavior is decided.
 
 ## Strong wrapper handling
 
-- `getStrongTokenFlags()` and `isStrongWrappedInline()` confirm that parsed
+- `getStrongWrapperMode()` and `isStrongWrappedInline()` confirm that parsed
   inline tokens support the raw `**...**` marker boundary. When no strong
   tokens exist and strongJa is absent, the raw string fallback remains for
   standard markdown-it compatibility.
-- `removeStrongWrappers()` removes the outer `**` marker pair by reparsing
-  the remaining inline content with the active markdown-it inline parser.
-  This preserves nested emphasis, code, and inline HTML behavior without
-  hand-editing child token ranges.
+- `removeStrongWrappers()` removes an exact outer strong token pair by reusing
+  the already parsed children and adjusting their levels. It reparses only
+  compatibility shapes, such as tokenless standard-markdown-it CJK boundaries
+  or raw boundary markers parsed as multiple sibling strong ranges.
 
 ## Matrix behavior
 
@@ -101,5 +101,9 @@ strongJa-aware behavior is decided.
 - `test/examples_matrix_off_wrapper_colgroup.txt` extends the same
   guarantee to `matrix: false + wrapper + colgroup`.
 - Direct assertions in `test/test.js` cover duplicate registration,
-  malformed strong-marker fallback, and representative synthetic token
-  `level`/`map` metadata.
+  malformed strong-marker fallback, the no-reparse fast path, wide existing
+  two-row headers, preserved inline syntax after group-prefix stripping, and
+  representative synthetic token `level`/`map` metadata. They also exercise
+  all 16 boolean combinations of the four public options.
+- `npm run benchmark` runs deterministic median-based render benchmarks for a
+  tall matrix table, many wrapped tables, and mixed wrapper/colgroup/matrix use.

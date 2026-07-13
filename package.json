@@ -10,15 +10,16 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node test/test.js"
+    "test": "node test/test.js",
+    "benchmark": "node benchmark/benchmark.js"
   },
   "repository": "https://github.com/peaceroad/p7d-markdown-it-table-ex.git",
   "author": "peaceroad <peaceroad@gmail.com>",
   "license": "MIT",
   "devDependencies": {
     "@peaceroad/markdown-it-figure-with-p-caption": "^0.18.0",
-    "@peaceroad/markdown-it-strong-ja": "^0.9.1",
-    "markdown-it": "^14.1.1",
+    "@peaceroad/markdown-it-strong-ja": "^0.9.3",
+    "markdown-it": "^14.3.0",
     "markdown-it-multimd-table": "^4.2.3"
   }
 }

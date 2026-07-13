@@ -1,46 +1,79 @@
 const tableExPluginKey = Symbol.for('@peaceroad/markdown-it-table-ex');
-const strongHasToken = 1;
-const strongLeadingToken = 2;
-const strongBoundaryTokens = 4;
+const strongWrapperNeedsReparse = 1;
+const strongWrapperExact = 2;
+const headerCellCompactionThreshold = 8;
 
-const getStrongTokenFlags = (inline) => {
-  if (!inline || !Array.isArray(inline.children)) return 0;
-  const children = inline.children;
-  let flags = 0;
+const getStrongWrapperMode = (inline, allowFallback) => {
+  if (!inline || typeof inline.content !== 'string') return 0;
+  const content = inline.content;
+  if (!content.startsWith('**') || !content.endsWith('**')) return 0;
+
+  const children = Array.isArray(inline.children) ? inline.children : null;
+  if (!children) return allowFallback ? strongWrapperNeedsReparse : 0;
+
+  let hasStrongToken = false;
   let firstMeaningfulType = '';
   let lastMeaningfulType = '';
+  let strongDepth = 0;
+  let isExactWrapper = true;
   for (let i = 0; i < children.length; i++) {
-    const type = children[i].type;
-    if (type === 'strong_open' || type === 'strong_close') {
-      flags |= strongHasToken;
+    const child = children[i];
+    const type = child.type;
+    if (type === 'strong_open' || type === 'strong_close') hasStrongToken = true;
+    if (type === 'text' && child.content === '') continue;
+
+    if (firstMeaningfulType === '') {
+      firstMeaningfulType = type;
+      if (type === 'strong_open') {
+        strongDepth = 1;
+      } else {
+        isExactWrapper = false;
+      }
+    } else if (isExactWrapper) {
+      // A meaningful token after depth returns to zero means the raw boundary
+      // markers were parsed as sibling strong ranges and require reparsing.
+      if (strongDepth === 0) {
+        isExactWrapper = false;
+      } else if (type === 'strong_open') {
+        strongDepth++;
+      } else if (type === 'strong_close') {
+        strongDepth--;
+      }
     }
-    if (type !== 'text' || children[i].content !== '') {
-      if (firstMeaningfulType === '') firstMeaningfulType = type;
-      lastMeaningfulType = type;
-    }
+    lastMeaningfulType = type;
   }
-  if (firstMeaningfulType === 'strong_open') flags |= strongLeadingToken;
+
   if (firstMeaningfulType === 'strong_open' && lastMeaningfulType === 'strong_close') {
-    flags |= strongBoundaryTokens;
+    return isExactWrapper && strongDepth === 0
+      ? strongWrapperExact
+      : strongWrapperNeedsReparse;
   }
-  return flags;
+  return allowFallback && !hasStrongToken ? strongWrapperNeedsReparse : 0;
 };
 
 const isStrongWrappedInline = (inline, allowFallback) => {
-  if (!inline || typeof inline.content !== 'string') return false;
-  const content = inline.content;
-  if (!content.startsWith('**') || !content.endsWith('**')) return false;
-  const flags = getStrongTokenFlags(inline);
-  if (flags & strongBoundaryTokens) return true;
-  return allowFallback && !(flags & strongHasToken);
+  return getStrongWrapperMode(inline, allowFallback) !== 0;
 };
 
 const hasLeadingStrongMarker = (inline, allowFallback) => {
   if (!inline || typeof inline.content !== 'string') return false;
   if (!inline.content.startsWith('**')) return false;
-  const flags = getStrongTokenFlags(inline);
-  if (flags & strongLeadingToken) return true;
-  return allowFallback && !(flags & strongHasToken);
+
+  const children = Array.isArray(inline.children) ? inline.children : null;
+  if (!children) return allowFallback;
+
+  let hasStrongToken = false;
+  let hasMeaningfulToken = false;
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    const type = child.type;
+    if (type === 'strong_open' || type === 'strong_close') hasStrongToken = true;
+    if (!hasMeaningfulToken && (type !== 'text' || child.content !== '')) {
+      hasMeaningfulToken = true;
+      if (type === 'strong_open') return true;
+    }
+  }
+  return allowFallback && !hasStrongToken;
 };
 
 const hasInlineRule = (md, name) => {
@@ -100,14 +133,60 @@ const setInlineText = (inline, Token, text, level, map) => {
   inline.children = [textToken];
 };
 
+const setInlineParsedContent = (state, inline, text, level, map) => {
+  inline.content = text;
+  applyLevelAndMap(inline, level, map);
+  const children = [];
+  state.md.inline.parse(text, state.md, state.env, children);
+  inline.children = children;
+};
+
 const removeHeaderCellAt = (tokens, openIdx) => {
-  if (!tokens[openIdx] || tokens[openIdx].type !== 'th_open') return;
+  if (!tokens[openIdx] || tokens[openIdx].type !== 'th_open' ||
+      !tokens[openIdx + 2] || tokens[openIdx + 2].type !== 'th_close') return;
   let deleteCount = 3;
   const next = tokens[openIdx + 3];
-  if (next && next.type === 'text' && next.content === '\n') {
-    deleteCount += 1;
-  }
+  if (next && next.type === 'text' && next.content === '\n') deleteCount++;
   tokens.splice(openIdx, deleteCount);
+};
+
+const removeHeaderCells = (tokens, openIndexes) => {
+  if (openIndexes.length === 0) return;
+
+  // V8's native splice is faster for a handful of edits. Switch to one-pass
+  // compaction only when repeated suffix shifts begin to dominate.
+  if (openIndexes.length < headerCellCompactionThreshold) {
+    openIndexes.sort((a, b) => b - a);
+    for (let i = 0; i < openIndexes.length; i++) {
+      removeHeaderCellAt(tokens, openIndexes[i]);
+    }
+    return;
+  }
+
+  const removeStarts = new Set();
+  for (let i = 0; i < openIndexes.length; i++) {
+    const openIdx = openIndexes[i];
+    if (tokens[openIdx] && tokens[openIdx].type === 'th_open' &&
+        tokens[openIdx + 2] && tokens[openIdx + 2].type === 'th_close') {
+      removeStarts.add(openIdx);
+    }
+  }
+  if (removeStarts.size === 0) return;
+
+  // Compact once instead of splicing once per cell. Repeated splices make a
+  // wide grouped header quadratic because every deletion shifts its suffix.
+  let read = 0;
+  let write = 0;
+  while (read < tokens.length) {
+    if (removeStarts.has(read)) {
+      read += 3;
+      const next = tokens[read];
+      if (next && next.type === 'text' && next.content === '\n') read++;
+      continue;
+    }
+    tokens[write++] = tokens[read++];
+  }
+  tokens.length = write;
 };
 
 const findFirstHeaderThPos = (tokens, tableOpenIdx, allowFallback, allowAnyFirstHeaderCell = false) => {
@@ -135,28 +214,22 @@ const findFirstHeaderThPos = (tokens, tableOpenIdx, allowFallback, allowAnyFirst
 const createColgroupRegexes = (colgroupWithNoAsterisk) => {
   if (colgroupWithNoAsterisk) {
     return {
-      singleHeaderGroup: /^([^:：]+)(?:：\s*|: +)/,
-      singleHeaderStrip: /^[^:：]+(?:：\s*|: +)(.*)$/,
-      multiHeaderGroup: /^([^:：]+)(?:：\s*|: +)/,
-      multiHeaderStrip: /^[^:：]+(?:：\s*|: +)(.*)$/
+      group: /^([^:：]+)(?:：\s*|: +)/,
+      strip: /^[^:：]+(?:：\s*|: +)(.*)$/
     };
   }
   return {
-    singleHeaderGroup: /^\*\*([^*:：]+)[:：]\*\*\s*/,
-    singleHeaderStrip: /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/,
-    multiHeaderGroup: /^\*\*([^*:：]+)[:：]\*\*/,
-    multiHeaderStrip: /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/
+    group: /^\*\*([^*:：]+)[:：]\*\*\s*/,
+    strip: /^\*\*[^*:：]+[:：]\*\*\s*(.*)$/
   };
 };
 
 const matchColgroupPattern = (inline, regex, opt, allowFallback) => {
   const content = inline && typeof inline.content === 'string' ? inline.content : '';
   if (opt.colgroupWithNoAsterisk) {
-    return content.indexOf(':') !== -1 || content.indexOf('：') !== -1
-      ? content.match(regex)
-      : null;
+    return regex.exec(content);
   }
-  return hasLeadingStrongMarker(inline, allowFallback) ? content.match(regex) : null;
+  return hasLeadingStrongMarker(inline, allowFallback) ? regex.exec(content) : null;
 };
 
 const addGroupData = (groupData, match) => {
@@ -169,7 +242,9 @@ const addGroupData = (groupData, match) => {
   const group = match[1].trim();
   const lastGroup = groupData.rawNames[groupData.rawNames.length - 1];
   if (lastGroup === group) {
-    groupData.spans[groupData.spans.length - 1]++;
+    const lastSpanIdx = groupData.spans.length - 1;
+    groupData.spans[lastSpanIdx]++;
+    if (groupData.spans[lastSpanIdx] === 2) groupData.hasSpan = true;
   } else {
     groupData.rawNames.push(group);
     groupData.spans.push(1);
@@ -177,23 +252,47 @@ const addGroupData = (groupData, match) => {
   groupData.headerCount++;
 };
 
-// Remove the outer `**` marker pair and let markdown-it own the remaining
-// inline syntax. This keeps nested emphasis/code/html behavior consistent with
-// the active inline parser instead of hand-editing child token ranges.
-const removeStrongWrappers = (state, inline, allowFallback) => {
+const createGroupData = () => ({
+  spans: [],
+  rawNames: [],
+  headerCount: 0,
+  hasSpan: false
+});
+
+const removeStrongWrappers = (state, inline, allowFallback, knownMode = 0) => {
   if (!inline || typeof inline.content !== 'string') return;
-  if (!isStrongWrappedInline(inline, allowFallback)) {
+  const content = inline.content;
+  const wrapperMode = knownMode || getStrongWrapperMode(inline, allowFallback);
+  if (wrapperMode === 0) return;
+
+  const unwrappedContent = content.slice(2, -2);
+  if (wrapperMode === strongWrapperExact) {
+    const children = inline.children;
+    let first = 0;
+    let last = children.length - 1;
+    while (first <= last && children[first].type === 'text' && children[first].content === '') first++;
+    while (last >= first && children[last].type === 'text' && children[last].content === '') last--;
+
+    const innerChildren = children.slice(first + 1, last);
+    for (let i = 0; i < innerChildren.length; i++) {
+      if (Number.isInteger(innerChildren[i].level) && innerChildren[i].level > 0) {
+        innerChildren[i].level--;
+      }
+    }
+    inline.content = unwrappedContent;
+    inline.children = innerChildren;
     return;
   }
 
-  const content = inline.content.slice(2, -2);
+  // Reparse only for compatibility shapes: tokenless CJK boundaries, or raw
+  // outer markers that markdown-it interpreted as multiple sibling ranges.
   const children = [];
-  state.md.inline.parse(content, state.md, state.env, children);
-  inline.content = content;
+  state.md.inline.parse(unwrappedContent, state.md, state.env, children);
+  inline.content = unwrappedContent;
   inline.children = children;
 }
 
-const addTheadThScope = (state, theadVar, allowFallback) => {
+const addTheadThScope = (state, theadVar, allowFallback, trackMatrixAnchor) => {
   const tokens = state.tokens;
   let firstThPos = theadVar.firstThPos;
   let j = theadVar.i + 1;
@@ -203,7 +302,7 @@ const addTheadThScope = (state, theadVar, allowFallback) => {
     const tokenType = tokens[j].type;
     if (tokenType === 'th_open') {
       tokens[j].attrSet('scope', 'col');
-      if (isFirstRow && !firstRowFirstThSeen) {
+      if (trackMatrixAnchor && isFirstRow && !firstRowFirstThSeen) {
         firstRowFirstThSeen = true;
         const inline = tokens[j + 1];
         const content = inline && typeof inline.content === 'string' ? inline.content : '';
@@ -221,7 +320,7 @@ const addTheadThScope = (state, theadVar, allowFallback) => {
   return {i: j, firstThPos: firstThPos}
 }
 
-const changeTdToTh = (state, headerThPos, bodyTdPoses, allowFallback) => {
+const changeTdToTh = (state, headerThPos, bodyTdPoses, bodyWrapperModes, allowFallback) => {
   const tokens = state.tokens;
   if (headerThPos >= 0) {
     removeStrongWrappers(state, tokens[headerThPos + 1], allowFallback);
@@ -234,20 +333,25 @@ const changeTdToTh = (state, headerThPos, bodyTdPoses, allowFallback) => {
     tokens[pos + 2].type = 'th_close';
     tokens[pos + 2].tag = 'th';
     const inline = tokens[pos + 1];
-    removeStrongWrappers(state, inline, allowFallback);
+    removeStrongWrappers(state, inline, allowFallback, bodyWrapperModes[j]);
   }
 }
 
 const checkTbody = (state, tbodyVar, allowFallback) => {
   const tokens = state.tokens;
   let isAllFirstTh = true
-  let tbodyFirstThPoses = []
+  const tbodyFirstThPoses = []
+  const tbodyWrapperModes = []
   let j = tbodyVar.i + 1
   while (j < tokens.length) {
     if (tokens[j].type === 'tr_open') {
       j++
-      if (tokens[j].type === 'td_open' && isStrongWrappedInline(tokens[j + 1], allowFallback)) {
+      const wrapperMode = tokens[j].type === 'td_open'
+        ? getStrongWrapperMode(tokens[j + 1], allowFallback)
+        : 0;
+      if (wrapperMode !== 0) {
         tbodyFirstThPoses.push(j)
+        tbodyWrapperModes.push(wrapperMode)
       } else {
         isAllFirstTh = false
         break
@@ -256,7 +360,12 @@ const checkTbody = (state, tbodyVar, allowFallback) => {
     if (tokens[j].type === 'tbody_close') break
     j++
   }
-  return { i: j, isAllFirstTh: isAllFirstTh, tbodyFirstThPoses: tbodyFirstThPoses}
+  return {
+    i: j,
+    isAllFirstTh,
+    tbodyFirstThPoses,
+    tbodyWrapperModes
+  }
 }
 
 const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
@@ -291,14 +400,7 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
     const rowMap = Array.isArray(tokens[tr1].map) ? tokens[tr1].map : tokens[theadOpen].map;
 
     // Calculate group names and colspan for the first row of th
-    const groupData = {
-      spans: [],
-      rawNames: [],
-      headerCount: 0
-    };
-    
-    const colgroupMatchReg = regexes.singleHeaderGroup;
-    const origColgroupMatchReg = regexes.singleHeaderStrip;
+    const groupData = createGroupData();
     
     let thIdx = tr1 + 1;
     const origThInfos = [];
@@ -317,7 +419,7 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
         origThInfos.push({ inline, map });
         addGroupData(
           groupData,
-          matchColgroupPattern(inline, colgroupMatchReg, opt, allowFallback)
+          matchColgroupPattern(inline, regexes.group, opt, allowFallback)
         );
       } else if (tokenType === 'tr_close') {
         trCloseIdx = thIdx;
@@ -331,8 +433,7 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
     
     const groupNames = groupData.rawNames;
     
-    const hasSpan = groupData.spans.some(span => span > 1);
-    if (hasSpan) {
+    if (groupData.hasSpan) {
       const insertTokens = createColgroupTokens(Token, groupData.spans, tableLevel + 1, rowMap);
       tokens.splice(tableOpenIdx + 1, 0, ...insertTokens);
       
@@ -408,8 +509,14 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
           const th2Inline = new Token('inline', '', 0);
           const origInline = subInfo ? subInfo.inline : null;
           const orig = origInline?.content || '';
-          const match = matchColgroupPattern(origInline, origColgroupMatchReg, opt, allowFallback);
-          setInlineText(th2Inline, Token, match ? match[1] : orig, cellLevel, subMap);
+          const match = matchColgroupPattern(origInline, regexes.strip, opt, allowFallback);
+          setInlineParsedContent(
+            state,
+            th2Inline,
+            match ? match[1] : orig,
+            cellLevel,
+            subMap
+          );
           
           newTr2.push(
             th2Open,
@@ -446,13 +553,7 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
   if (tr1 < 0 || tr2 < 0) return;
   
   // Calculate group names and colspan for multi-row case
-  const groupData = {
-    spans: [],
-    rawNames: [],
-    headerCount: 0
-  };
-  const groupMatchReg = regexes.multiHeaderGroup;
-  const groupStripReg = regexes.multiHeaderStrip;
+  const groupData = createGroupData();
   
   const firstRowCells = [];
   let firstRowClose = -1;
@@ -484,12 +585,10 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
   
   for (let i = 0; i < firstRowCells.length; i++) {
     const inline = tokens[firstRowCells[i] + 1];
-    addGroupData(groupData, matchColgroupPattern(inline, groupMatchReg, opt, allowFallback));
+    addGroupData(groupData, matchColgroupPattern(inline, regexes.group, opt, allowFallback));
   }
   
   if (groupData.headerCount < 2) return;
-  
-  const hasSpan = groupData.spans.some(span => span > 1);
   
   // Add colspan/rowspan to thead and strip group prefixes in the second row.
   const firstRowRemove = [];
@@ -540,9 +639,9 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
       }
       tokens[secondOpen].attrSet('scope', 'col');
       const secondInline = tokens[secondOpen + 1];
-      const secondMatch = matchColgroupPattern(secondInline, groupStripReg, opt, allowFallback);
+      const secondMatch = matchColgroupPattern(secondInline, regexes.strip, opt, allowFallback);
       if (secondMatch) {
-        setInlineText(secondInline, Token, secondMatch[1]);
+        setInlineParsedContent(state, secondInline, secondMatch[1]);
       }
     }
     
@@ -551,13 +650,10 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
   }
   
   if (firstRowRemove.length || secondRowRemove.length) {
-    const removeTargets = firstRowRemove.concat(secondRowRemove).sort((a, b) => b - a);
-    for (let i = 0; i < removeTargets.length; i++) {
-      removeHeaderCellAt(tokens, removeTargets[i]);
-    }
+    removeHeaderCells(tokens, firstRowRemove.concat(secondRowRemove));
   }
   
-  if (hasSpan) {
+  if (groupData.hasSpan) {
     const tableLevel = tokens[tableOpenIdx].level;
     const colgroupMap = Array.isArray(tokens[tr1].map) ? tokens[tr1].map : tokens[theadOpen].map;
     tokens.splice(
@@ -571,13 +667,17 @@ const setColgroup = (state, tableOpenIdx, opt, allowFallback, regexes) => {
 const tableEx = (state, opt, regexes) => {
   const tokens = state.tokens;
   let tokenLength = tokens.length;
-  const allowStrongFallback = !hasInlineRule(state.md, 'strong_ja');
-  
+  const usesStrongMarkers = opt.matrix || opt.colgroup;
+  let allowStrongFallback;
   let idx = 0;
   while (idx < tokenLength) {
     if (tokens[idx].type !== 'table_open') { 
       idx++; 
       continue; 
+    }
+
+    if (allowStrongFallback === undefined) {
+      allowStrongFallback = usesStrongMarkers && !hasInlineRule(state.md, 'strong_ja');
     }
     
     let tableOpenIdx = idx;
@@ -602,7 +702,7 @@ const tableEx = (state, opt, regexes) => {
     
     const hasThead = tokens[theadVar.i] && tokens[theadVar.i].type === 'thead_open';
     if (hasThead) {
-      theadVar = addTheadThScope(state, theadVar, allowStrongFallback);
+      theadVar = addTheadThScope(state, theadVar, allowStrongFallback, opt.matrix);
       idx = theadVar.i + 1;
       const hadMatrixAnchor = Number.isInteger(theadVar.firstThPos) && theadVar.firstThPos >= 0;
       if (opt.colgroup) {
@@ -637,6 +737,7 @@ const tableEx = (state, opt, regexes) => {
         i: tbodyOpenPos,
         isAllFirstTh: false,
         tbodyFirstThPoses: [],
+        tbodyWrapperModes: [],
       };
       
       const hasTbody = tbodyVar.i >= 0;
@@ -648,11 +749,12 @@ const tableEx = (state, opt, regexes) => {
       const hasMatrixAnchor = hasThead
         ? Number.isInteger(theadVar.firstThPos) && theadVar.firstThPos >= 0
         : true;
-      if (hasMatrixAnchor && tbodyVar.isAllFirstTh) {
+      if (hasMatrixAnchor && tbodyVar.isAllFirstTh && tbodyVar.tbodyFirstThPoses.length > 0) {
         changeTdToTh(
           state,
           hasThead ? theadVar.firstThPos : -1,
           tbodyVar.tbodyFirstThPoses,
+          tbodyVar.tbodyWrapperModes,
           allowStrongFallback
         );
       }
@@ -696,7 +798,9 @@ const mditTableEx = (md, option) => {
     configurable: false
   });
 
-  const regexes = createColgroupRegexes(opt.colgroupWithNoAsterisk);
+  const regexes = opt.colgroup
+    ? createColgroupRegexes(opt.colgroupWithNoAsterisk)
+    : null;
   md.core.ruler.after('replacements', 'table-ex', (state) => {
     tableEx(state, opt, regexes);
   });

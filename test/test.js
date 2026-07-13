@@ -249,6 +249,168 @@ const runDirectAssertions = () => {
   assert.deepStrictEqual(generatedTr.map, [0, 1])
   assert.strictEqual(generatedTh.level, 3)
   assert.deepStrictEqual(generatedTh.map, [0, 1])
+
+  const mdFastUnwrap = mdit({ html: true }).use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  }).use(mditTableEx)
+  const originalInlineParse = mdFastUnwrap.inline.parse
+  let inlineParseCalls = 0
+  mdFastUnwrap.inline.parse = function (...args) {
+    inlineParseCalls++
+    return originalInlineParse.apply(this, args)
+  }
+  assert.match(
+    mdFastUnwrap.render(`| **h0** | h1 |
+| --- | --- |
+| **r0** | x |
+`),
+    /<th scope="row">r0<\/th>/
+  )
+  assert.strictEqual(
+    inlineParseCalls,
+    4,
+    'exact strong wrappers should reuse parsed children instead of reparsing them'
+  )
+
+  assert.strictEqual(
+    mdColgroupForTokens.render(`| h0 | **g:** *h1* | **g:** \`h2\` |
+| --- | --- | --- |
+| a | b | c |
+`),
+    `<table>
+<colgroup>
+<col>
+<col span="2">
+</colgroup>
+<thead>
+<tr>
+<th rowspan="2" scope="col">h0</th>
+<th colspan="2" scope="col">g</th>
+</tr>
+<tr>
+<th scope="col"><em>h1</em></th>
+<th scope="col"><code>h2</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+<td>c</td>
+</tr>
+</tbody>
+</table>
+`
+  )
+
+  const multirowInlineHtml = mdColgroupForTokens.render(`| h0 | **g:** | **g:** |
+| h0 | **g:** *h1* | **g:** \`h2\` |
+| --- | --- | --- |
+| a | b | c |
+`)
+  assert.match(multirowInlineHtml, /<th scope="col"><em>h1<\/em><\/th>/)
+  assert.match(multirowInlineHtml, /<th scope="col"><code>h2<\/code><\/th>/)
+  assert.doesNotMatch(multirowInlineHtml, /<strong>g:<\/strong>/)
+
+  const groupWidth = 64
+  const wideFirstHeader = ['h0', ...Array(groupWidth).fill('**g:**')]
+  const wideSecondHeader = ['h0', ...Array.from({ length: groupWidth }, (_, i) => `**g:** h${i}`)]
+  const wideSeparator = Array(groupWidth + 1).fill('---')
+  const wideBody = Array(groupWidth + 1).fill('v')
+  const wideMarkdown = [
+    `| ${wideFirstHeader.join(' | ')} |`,
+    `| ${wideSecondHeader.join(' | ')} |`,
+    `| ${wideSeparator.join(' | ')} |`,
+    `| ${wideBody.join(' | ')} |`,
+  ].join('\n')
+  const wideTokens = mdColgroupForTokens.parse(wideMarkdown, {})
+  const wideTheadOpen = wideTokens.findIndex(token => token.type === 'thead_open')
+  const wideTheadClose = wideTokens.findIndex(token => token.type === 'thead_close')
+  const wideTheadTokens = wideTokens.slice(wideTheadOpen, wideTheadClose + 1)
+  const wideGroupCell = wideTheadTokens.find(token =>
+    token.type === 'th_open' && token.attrGet('colspan') === groupWidth.toString()
+  )
+  assert.ok(wideGroupCell)
+  assert.strictEqual(
+    wideTheadTokens.filter(token => token.type === 'th_open').length,
+    groupWidth + 2
+  )
+
+  for (const preset of ['default', 'commonmark', 'zero']) {
+    assert.doesNotThrow(() => mdit(preset).use(mditTableEx).render('text'))
+  }
+
+  const strongJaOrderSource = `| h0 | **料理：**hh1 | **料理：**hh2 |
+| --- | --- | --- |
+| a | b | c |
+`
+  const createStrongJaOrderMd = (strongFirst) => {
+    const instance = mdit({ html: true }).use(mditMultimdTable, {
+      headerless: true,
+      multiline: true,
+      rowspan: true,
+    })
+    return strongFirst
+      ? instance.use(mditStrongJa).use(mditTableEx, { colgroup: true })
+      : instance.use(mditTableEx, { colgroup: true }).use(mditStrongJa)
+  }
+  assert.strictEqual(
+    createStrongJaOrderMd(true).render(strongJaOrderSource),
+    createStrongJaOrderMd(false).render(strongJaOrderSource)
+  )
+
+  for (const matrix of [false, true]) {
+    for (const wrapper of [false, true]) {
+      for (const colgroup of [false, true]) {
+        for (const colgroupWithNoAsterisk of [false, true]) {
+          const groupPrefix = colgroupWithNoAsterisk ? 'g:' : '**g:**'
+          const optionSource = `| **h0** | ${groupPrefix} h1 | ${groupPrefix} h2 |
+| --- | --- | --- |
+| **r0** | a | b |
+`
+          const optionMd = mdit({ html: true }).use(mditMultimdTable, {
+            headerless: true,
+            multiline: true,
+            rowspan: true,
+          }).use(mditTableEx, {
+            matrix,
+            wrapper,
+            colgroup,
+            colgroupWithNoAsterisk,
+          })
+          const optionHtml = optionMd.render(optionSource)
+          const optionLabel = JSON.stringify({
+            matrix,
+            wrapper,
+            colgroup,
+            colgroupWithNoAsterisk,
+          })
+          assert.strictEqual(
+            optionHtml.includes('<div class="table-wrapper">'),
+            wrapper,
+            `wrapper flow failed: ${optionLabel}`
+          )
+          assert.strictEqual(
+            optionHtml.includes('<colgroup>'),
+            colgroup,
+            `colgroup flow failed: ${optionLabel}`
+          )
+          assert.strictEqual(
+            optionHtml.includes('<th scope="row">r0</th>'),
+            matrix,
+            `matrix flow failed: ${optionLabel}`
+          )
+          assert.strictEqual(
+            optionHtml.includes('<td><strong>r0</strong></td>'),
+            !matrix,
+            `matrix-off flow failed: ${optionLabel}`
+          )
+        }
+      }
+    }
+  }
 }
 
 let pass = true
@@ -264,4 +426,9 @@ pass = runTest(mdColgroupWithNoAsterisk, testData.colgroupWithNoAsterisk, pass)
 pass = runTest(mdStrongJa, testData.strongJa, pass)
 runDirectAssertions()
 
-if (pass) console.log('Passed all test.')
+if (pass) {
+  console.log('Passed all test.')
+} else {
+  console.error('One or more fixture tests failed.')
+  process.exitCode = 1
+}
