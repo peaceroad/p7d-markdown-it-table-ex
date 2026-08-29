@@ -1,6 +1,6 @@
 {
   "name": "@peaceroad/markdown-it-table-ex",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "A markdown-it plugin. Add matrix and wrapper notation for table processing.",
   "type": "module",
   "main": "index.js",
@@ -13,13 +13,16 @@
     "test": "node test/test.js",
     "benchmark": "node benchmark/benchmark.js"
   },
-  "repository": "https://github.com/peaceroad/p7d-markdown-it-table-ex.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peaceroad/p7d-markdown-it-table-ex.git"
+  },
   "author": "peaceroad <peaceroad@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@peaceroad/markdown-it-figure-with-p-caption": "^0.18.0",
-    "@peaceroad/markdown-it-strong-ja": "^0.9.3",
-    "markdown-it": "^14.3.0",
-    "markdown-it-multimd-table": "^4.2.3"
+    "@peaceroad/markdown-it-figure-with-p-caption": "^0.20.0",
+    "@peaceroad/markdown-it-multimd-table": "^4.2.3-p7d.1",
+    "@peaceroad/markdown-it-strong-ja": "^0.10.0",
+    "markdown-it": "^15.0.0"
   }
 }

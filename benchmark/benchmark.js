@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks'
 import mdit from 'markdown-it'
-import mditMultimdTable from 'markdown-it-multimd-table'
+import mditMultimdTable from '@peaceroad/markdown-it-multimd-table'
 
 import mditTableEx from '../index.js'
 

@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import mdit from 'markdown-it'
 import mditFigureWithPCaption from '@peaceroad/markdown-it-figure-with-p-caption'
-import mditMultimdTable from 'markdown-it-multimd-table'
+import mditMultimdTable from '@peaceroad/markdown-it-multimd-table'
 import mditStrongJa from '@peaceroad/markdown-it-strong-ja'
 
 import mditTableEx from '../index.js'
@@ -163,6 +163,19 @@ const runTest = (process, pat, pass, testId) => {
 }
 
 const runDirectAssertions = () => {
+  const mdMultimd = mdit({ html: true })
+  assert.strictEqual(mdMultimd.utils.assign, undefined)
+  mdMultimd.use(mditMultimdTable, {
+    headerless: true,
+    multiline: true,
+    rowspan: true,
+  })
+  assert.strictEqual(
+    mdMultimd.utils.assign,
+    undefined,
+    'the multimd-table plugin must not mutate md.utils'
+  )
+
   assert.throws(
     () => mdit({ html: true }).use(mditTableEx).use(mditTableEx),
     /already registered/
